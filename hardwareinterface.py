@@ -5,6 +5,9 @@ import random
 import json
 import serial
 import struct
+import os
+import subprocess
+import requests 
 import RPi.GPIO as GPIO
 from datetime import datetime
 from ocpp.v16 import ChargePoint as cp
@@ -320,6 +323,43 @@ class ChargePoint(cp):
             await self.ws.close()
         GPIO.cleanup()  # Clean up GPIO pins
         logging.info("Charger successfully shut down.")
+
+
+    @on('UpdateFirmware')
+    async def on_update_firmware(self, request):
+        url = request.location
+        firmware_file = 'new_firmware.py'
+
+        if self.download_firmware(url, firmware_file):
+            self.apply_firmware_update(firmware_file)
+        else:
+            logging.error('Firmware download failed.')
+
+    def download_firmware(self, url, destination):
+        try:
+            response = requests.get(url, timeout=60)  # Timeout to avoid long blocking
+            if response.status_code == 200:
+                with open(destination, 'wb') as file:
+                    file.write(response.content)
+                return True
+        except Exception as e:
+            logging.error(f'Error downloading firmware: {e}')
+        return False
+
+    def apply_firmware_update(self, firmware_file):
+        backup_firmware = 'firmware_backup.py'
+        current_firmware = 'firmware.py'
+
+        os.rename(current_firmware, backup_firmware)
+        os.rename(firmware_file, current_firmware)
+
+        try:
+            subprocess.run(['python3', current_firmware], check=True)
+            # Success: The script won't reach here
+        except subprocess.CalledProcessError:
+            # Revert to old firmware
+            os.rename(backup_firmware, current_firmware)
+            subprocess.run(['python3', current_firmware])
 
 async def main():
     cp_instance = None
