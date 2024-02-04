@@ -71,7 +71,7 @@ class ChargePoint(cp):
         return response.id_tag_info.status == AuthorizationStatus.accepted
 
     @on(Action.GetConfiguration)
-    async def handle_get_configuration(self,**kwargs):
+    async def handle_get_configuration(self, **kwargs):
         request={}
         requested_keys = kwargs.get('key',False)
         configuration = {}
@@ -93,9 +93,9 @@ class ChargePoint(cp):
             )
 
     @on(Action.ChangeConfiguration)
-    async def handle_set_configuration(self,request):
+    async def handle_set_configuration(self, **kwargs):
         unknown_keys = []
-        for key_value in request.key_value:
+        for key_value in kwargs.key_value:
             key = key_value.key
             value = key_value.value
             if key in self.config:
