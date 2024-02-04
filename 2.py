@@ -80,16 +80,16 @@ class ChargePoint(cp):
         )
 
     @on(Action.ChangeConfiguration)
-    async def handle_set_configuration(self):
+    async def handle_set_configuration(self,request):
         unknown_keys = []
-        # for key_value in request.key_value:
-        #     key = key_value.key
-        #     value = key_value.value
-        #     if key in self.config:
-        #         self.config[key] = value
-        #         self.save_config()
-        #     else:
-        #         unknown_keys.append(key)
+        for key_value in request.key_value:
+            key = key_value.key
+            value = key_value.value
+            if key in self.config:
+                self.config[key] = value
+                self.save_config()
+            else:
+                unknown_keys.append(key)
 
         return call_result.ChangeConfigurationPayload(
             status=ConfigurationStatus.accepted
