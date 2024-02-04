@@ -6,12 +6,12 @@ import os
 from ocpp.routing import on
 from ocpp.v16.enums import Action
 import requests
-import time
+
 try:
     import websockets
 except ModuleNotFoundError:
     print("This example relies on the 'websockets' package.")
-    print("Please install it by running: ")
+    print("Please install it by running:")
     print()
     print(" $ pip install websockets")
     import sys
@@ -19,38 +19,34 @@ except ModuleNotFoundError:
 
 from ocpp.v16 import ChargePoint as cp
 from ocpp.v16 import call, call_result
-from ocpp.v16.enums import (RegistrationStatus
-                            , AuthorizationStatus
-                            , ConfigurationStatus
-                            , ResetType
-                            , ResetStatus
-                            , ClearCacheStatus
-                            , TriggerMessageStatus
-                            , MessageTrigger
-                            )
+from ocpp.v16.enums import (RegistrationStatus, AuthorizationStatus,
+                            ConfigurationStatus, ResetType, ResetStatus,
+                            ClearCacheStatus, TriggerMessageStatus, MessageTrigger)
 
 import json
 from datetime import datetime, timedelta
 
-
 logging.basicConfig(level=logging.INFO)
 
-
+# Function to get relay pins mapping
 def get_relay_pins():
-        return {1: 17, 2: 27}
+    return {1: 17, 2: 27}
 
+# Get initial meter values based on time since the start
 start_time = datetime.now()
 
 def get_meter_value(connector_id):
-        # Calculate the time difference in seconds
-        time_diff = datetime.now() - start_time
-        # Convert time difference to seconds and divide by 10 to get the meter value
-        meter_value = time_diff.total_seconds() / 10
-        return { "power":meter_value
-            , "voltage":220
-            , "current":16
-        }
+    # Calculate the time difference in seconds
+    time_diff = datetime.now() - start_time
+    # Convert time difference to seconds and divide by 10 to get the meter value
+    meter_value = time_diff.total_seconds() / 10
+    return {
+        "power": meter_value,
+        "voltage": 220,
+        "current": 16
+    }
 
+# Class to control a relay
 class RelayController:
     def __init__(self, relay_pin):
         self.relay_pin = relay_pin
@@ -61,26 +57,29 @@ class RelayController:
     def close_relay(self):
         print('Charging Stopped')
 
+# Load configuration from a JSON file
 def load_config(config_file):
     try:
         with open(config_file, 'r') as file:
             data = json.load(file)
             return data
-        
     except (IOError, json.JSONDecodeError) as e:
         logging.error(f"Failed to load config: {e}")
         return {"NumberOfConnectors": 2}
 
+# ChargePoint class that extends the OCPP ChargePoint class
 class ChargePoint(cp):
 
     ###########
     ## Non OCPP Functions
     ###########
 
+    # Handle disconnection and attempt to reconnect
     async def handle_disconnect(self):
-        logging.warning("Disconnected from central system. Attempting to reconnect...")
+        logging.warning("Disconnected from the central system. Attempting to reconnect...")
         self.reconnecting = True
 
+    # Gracefully shut down the charger
     async def graceful_shutdown(self):
         logging.info("Shutting down charger...")
         self.save_config()
@@ -94,7 +93,7 @@ class ChargePoint(cp):
             await self.ws.close()
         logging.info("Charger successfully shut down.")
 
-
+    # Load configuration from a JSON file
     def load_config(self):
         try:
             with open(self.config_file, 'r') as file:
@@ -104,25 +103,25 @@ class ChargePoint(cp):
         except (IOError, json.JSONDecodeError) as e:
             logging.error(f"Failed to load config: {e}")
             self.config = {"NumberOfConnectors": 2}
-    
+
+    # Save configuration to a JSON file
     def save_config(self):
         with open(self.config_file, 'w') as file:
             json.dump(self.config, file)
 
+    # Reset charger data to initial values
     def reset_data(self):
         self.config_file = "config.json"
         self.load_config()
         self.start_time = datetime.utcnow()
         # Initialize RelayControllers for each connector
-        self.relay_controllers = {connector_id: RelayController(relay_pin) 
-                                  for connector_id, relay_pin in get_relay_pins().items()}
-        
+        self.relay_controllers = {connector_id: RelayController(relay_pin) for connector_id, relay_pin in
+                                  get_relay_pins().items()}
         self.active_transactions = {}
-
         self.function_call_queue = asyncio.Queue()
         asyncio.create_task(self.process_function_call_queue())
 
-
+    # Download firmware from a given URL
     def download_firmware(self, url, destination):
         try:
             response = requests.get(url, timeout=60)
@@ -134,6 +133,7 @@ class ChargePoint(cp):
             logging.error(f'Error downloading firmware: {e}')
         return False
 
+    # Apply a firmware update
     def apply_firmware_update(self, firmware_file):
         backup_firmware = 'firmware_backup.py'
         current_firmware = 'firmware.py'
@@ -147,19 +147,19 @@ class ChargePoint(cp):
             os.rename(backup_firmware, current_firmware)
             subprocess.run(['python3', current_firmware])
 
+    # Process function calls in a queue
     async def process_function_call_queue(self):
         while True:
             function_call = await self.function_call_queue.get()
             await function_call["function"](*function_call["args"], **function_call["kwargs"])
             self.function_call_queue.task_done()
 
-
     ###########
     ## Charger Originating commands
     ###########
 
+    # Send a boot notification to the central system
     async def send_boot_notification(self, retries=0):
-
         if retries > self.config.get("MaxBootNotificationRetries", 5):
             logging.error("Max boot notification retries reached. Giving up.")
             return
@@ -168,7 +168,7 @@ class ChargePoint(cp):
             charge_point_model=self.config.get('Model'),
             charge_point_vendor=self.config.get('Vendor'),
         )
-        
+
         logging.info(f"Sending BootNotification request: {request}")
 
         try:
@@ -178,7 +178,7 @@ class ChargePoint(cp):
             if response.status == RegistrationStatus.accepted:
                 self.connected = True
                 logging.info("Connected to central system.")
-                return 
+                return
             else:
                 logging.warning("Boot notification not accepted. Retrying...")
                 await asyncio.sleep(self.config.get("BootNotificationRetryInterval", 10))
@@ -188,30 +188,30 @@ class ChargePoint(cp):
             await asyncio.sleep(self.config.get("BootNotificationRetryInterval", 10))
             await self.send_boot_notification(retries + 1)
 
-
-
+    # Send a periodic heartbeat message to the central system
     async def heartbeat(self):
         while True:
-            await asyncio.sleep(int(self.config.get('HeartbeatInterval'),30))  # wait for 2 seconds
+            await asyncio.sleep(int(self.config.get('HeartbeatInterval'), 30))  # Wait for 2 seconds
             request = call.HeartbeatPayload()
             response = await self.call(request)
-            logging.info(f"Heartbeat sent/recieve at {datetime.now()}: {response}")
+            logging.info(f"Heartbeat sent/received at {datetime.now()}: {response}")
 
+    # Authorize a user based on their ID tag
     async def authorize(self, id_tag):
         request = call.AuthorizePayload(id_tag=id_tag)
         response = await self.call(request)
         return response.id_tag_info['status'] == AuthorizationStatus.accepted
-    
-    
+
+    # Start a charging transaction
     async def start_transaction(self, connector_id, id_tag):
         if connector_id not in self.active_transactions:
             meter_start = get_meter_value(connector_id)
 
             authorize_response = await self.authorize(id_tag)
             if not authorize_response:
-                logging.error(f"Authorization failed for idTag {id_tag}. Transaction not stopped.")
+                logging.error(f"Authorization failed for idTag {id_tag}. Transaction not started.")
                 return False
-            
+
             request = call.StartTransactionPayload(
                 connector_id=connector_id,
                 id_tag=id_tag,
@@ -223,7 +223,7 @@ class ChargePoint(cp):
             transaction_id = response.transaction_id
             transaction = {
                 "transaction_id": transaction_id,
-                "connector_id": connector_id, 
+                "connector_id": connector_id,
                 "id_tag": id_tag,
                 "meter_start": int(meter_start['power']),
             }
@@ -233,12 +233,11 @@ class ChargePoint(cp):
             self.relay_controllers[connector_id].open_relay()
             logging.info(f"Transaction {transaction_id} started on connector {connector_id}")
             return True
-
         else:
             logging.error(f"Connector {connector_id} is already in use")
             return False
-        
 
+    # Stop a charging transaction
     async def stop_transaction(self, connector_id):
         if connector_id in self.active_transactions:
             transaction = self.active_transactions[connector_id]
@@ -269,7 +268,7 @@ class ChargePoint(cp):
             logging.warning(f"No active transaction found on connector {connector_id}")
             return False
 
-
+    # Send periodic meter values to the central system
     async def send_periodic_meter_values(self):
         while True:
             for connector_id, transaction in self.active_transactions.items():
@@ -303,10 +302,10 @@ class ChargePoint(cp):
                     meter_value=[{
                         "timestamp": datetime.utcnow().isoformat(),
                         "sampled_value": [power_sampled_value]
-                    },{
+                    }, {
                         "timestamp": datetime.utcnow().isoformat(),
                         "sampled_value": [voltage_sampled_value]
-                    },{
+                    }, {
                         "timestamp": datetime.utcnow().isoformat(),
                         "sampled_value": [current_sampled_value]
                     }]
@@ -315,12 +314,11 @@ class ChargePoint(cp):
                 print(response)
             await asyncio.sleep(self.config.get("MeterValueSampleInterval", 60))
 
-
-
     ###########
     ## Server Originating commands
     ###########
 
+    # Handle TriggerMessage action
     @on(Action.TriggerMessage)
     async def on_trigger_message(self, **kwargs):
         requested_message = kwargs.get('requested_message')
@@ -346,7 +344,8 @@ class ChargePoint(cp):
         return call_result.TriggerMessagePayload(
             status=status
         )
-    
+
+    # Handle UpdateFirmware action
     @on(Action.UpdateFirmware)
     async def on_update_firmware(self, **kwargs):
         url = kwargs.location
@@ -357,34 +356,36 @@ class ChargePoint(cp):
         else:
             logging.error('Firmware download failed.')
 
+    # Handle ClearCache action
     @on(Action.ClearCache)
     async def on_clear_cache(self, **kwargs):
         self.reset_data()
         return call_result.ClearCachePayload(
-                status=ClearCacheStatus.accepted
-            ) 
+            status=ClearCacheStatus.accepted
+        )
 
+    # Handle GetConfiguration action
     @on(Action.GetConfiguration)
     async def handle_get_configuration(self, **kwargs):
-        requested_keys = kwargs.get('key',False)
+        requested_keys = kwargs.get('key', False)
         configuration = {}
 
         if not requested_keys:
-            configuration = {k: {"key":str(k),"value": str(v),"readonly":True} for k, v in self.config.items()}
-
+            configuration = {k: {"key": str(k), "value": str(v), "readonly": True} for k, v in self.config.items()}
         else:
             for key in requested_keys:
                 if key in self.config:
                     configuration[key] = {
-                                            "key":str(key),
-                                            "value": str(self.config[key]),
-                                            "readonly":True
-                                        }
+                        "key": str(key),
+                        "value": str(self.config[key]),
+                        "readonly": True
+                    }
 
         return call_result.GetConfigurationPayload(
-                configuration_key=list(configuration.values())
-            )
+            configuration_key=list(configuration.values())
+        )
 
+    # Handle ChangeConfiguration action
     @on(Action.ChangeConfiguration)
     async def handle_set_configuration(self, **kwargs):
         key = kwargs.get('key')
@@ -401,6 +402,7 @@ class ChargePoint(cp):
                 status=ConfigurationStatus.rejected
             )
 
+    # Handle UpdateFirmware action (again, duplicate function)
     @on(Action.UpdateFirmware)
     async def on_update_firmware(self, **kwargs):
         url = kwargs.location
@@ -410,8 +412,8 @@ class ChargePoint(cp):
             self.apply_firmware_update(firmware_file)
         else:
             logging.error('Firmware download failed.')
-   
-        
+
+    # Handle RemoteStartTransaction action
     @on(Action.RemoteStartTransaction)
     async def on_remote_start_transaction(self, **kwargs):
         id_tag = kwargs.get('id_tag')
@@ -430,6 +432,7 @@ class ChargePoint(cp):
 
         return call_result.RemoteStartTransactionPayload(status='Accepted')
 
+    # Handle RemoteStopTransaction action
     @on(Action.RemoteStopTransaction)
     async def on_remote_stop_transaction(self, **kwargs):
         transaction_id = kwargs.get('transaction_id')
@@ -451,15 +454,16 @@ class ChargePoint(cp):
         else:
             print(f"Transaction ID {transaction_id} not found.")
             return call_result.RemoteStopTransactionPayload(status='Rejected')
-    
 
+# Main function to run the ChargePoint
 async def main():
     async with websockets.connect(
-                "ws://csms.saikia.dev:8180/steve/websocket/CentralSystemService/test1", subprotocols=["ocpp1.6"]
-        ) as ws:
+            "ws://csms.saikia.dev:8180/steve/websocket/CentralSystemService/test1", subprotocols=["ocpp1.6"]
+    ) as ws:
         cp_instance = ChargePoint("test1", ws)
         cp_instance.reset_data()
-        await asyncio.gather(cp_instance.start(), cp_instance.send_boot_notification(), cp_instance.heartbeat(), cp_instance.send_periodic_meter_values())
+        await asyncio.gather(cp_instance.start(), cp_instance.send_boot_notification(), cp_instance.heartbeat(),
+                             cp_instance.send_periodic_meter_values())
 
 if __name__ == "__main__":
     asyncio.run(main())
