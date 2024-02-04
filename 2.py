@@ -288,9 +288,9 @@ async def main():
     cp_instance=None
     try:
         async with websockets.connect(
-            "ws://localhost:80/34829732A7B0", subprotocols=["ocpp1.6"]
+                "ws://csms.saikia.dev:8180/steve/websocket/CentralSystemService/test1", subprotocols=["ocpp1.6"]
         ) as ws:
-            cp_instance = ChargePoint("34829732A7B0", ws)
+            cp_instance = ChargePoint("test1", ws)
             await asyncio.gather(cp_instance.start(), cp_instance.send_boot_notification(), cp_instance.heartbeat())
     except KeyboardInterrupt:
         if cp_instance:
