@@ -1,0 +1,10 @@
+{
+    "HeartbeatInterval": 600,
+    "MeterValueSampleInterval": 30,
+    "NumberOfConnectors": 2,
+    "BootNotificationRetryInterval": 10,
+    "MaxBootNotificationRetries": 5,
+    "Model":"BharatAC",
+    "Vendor":"Chinmoy"
+
+}
