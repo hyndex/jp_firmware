@@ -160,7 +160,7 @@ class ChargePoint(cp):
 
     # Send a boot notification to the central system
     async def send_boot_notification(self, retries=0):
-        if retries > self.config.get("MaxBootNotificationRetries", 5):
+        if retries > int(self.config.get("MaxBootNotificationRetries", 5)):
             logging.error("Max boot notification retries reached. Giving up.")
             return
 
@@ -181,11 +181,11 @@ class ChargePoint(cp):
                 return
             else:
                 logging.warning("Boot notification not accepted. Retrying...")
-                await asyncio.sleep(self.config.get("BootNotificationRetryInterval", 10))
+                await asyncio.sleep(int(self.config.get("BootNotificationRetryInterval", 10)))
                 await self.send_boot_notification(retries + 1)
         except Exception as e:
             logging.error(f"Error sending boot notification: {e}. Retrying...")
-            await asyncio.sleep(self.config.get("BootNotificationRetryInterval", 10))
+            await asyncio.sleep(int(self.config.get("BootNotificationRetryInterval", 10)))
             await self.send_boot_notification(retries + 1)
 
     # Send a periodic heartbeat message to the central system
@@ -312,7 +312,7 @@ class ChargePoint(cp):
                 )
                 response = await self.call(request)
                 print(response)
-            await asyncio.sleep(self.config.get("MeterValueSampleInterval", 60))
+            await asyncio.sleep(int(self.config.get("MeterValueSampleInterval", 60)))
 
     ###########
     ## Server Originating commands
