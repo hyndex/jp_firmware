@@ -22,6 +22,8 @@ from ocpp.v16 import call, call_result
 from ocpp.v16.enums import (RegistrationStatus
                             , AuthorizationStatus
                             , ConfigurationStatus
+                            , ResetType
+                            , ResetStatus
                             )
 
 import json
@@ -69,15 +71,26 @@ class ChargePoint(cp):
         return response.id_tag_info.status == AuthorizationStatus.accepted
 
     @on(Action.GetConfiguration)
-    async def handle_get_configuration(self):
-        # requested_keys = request.key
+    async def handle_get_configuration(self,**kwargs):
+        request={}
+        requested_keys = kwargs.get('key',False)
         configuration = {}
 
-        configuration = {k: {"key":str(k),"value": str(v),"readonly":True} for k, v in self.config.items()}
+        if not requested_keys:
+            configuration = {k: {"key":str(k),"value": str(v),"readonly":True} for k, v in self.config.items()}
+
+        else:
+            for key in requested_keys:
+                if key in self.config:
+                    configuration[key] = {
+                                            "key":str(key),
+                                            "value": str(self.config[key]),
+                                            "readonly":True
+                                        }
 
         return call_result.GetConfigurationPayload(
-            configuration_key=list(configuration.values())
-        )
+                configuration_key=list(configuration.values())
+            )
 
     @on(Action.ChangeConfiguration)
     async def handle_set_configuration(self,request):
@@ -117,6 +130,30 @@ class ChargePoint(cp):
         # GPIO.cleanup()  # Clean up GPIO pins
         logging.info("Charger successfully shut down.")
 
+
+    @on(Action.Reset)
+    async def handle_reset(self, request):
+        reset_type = request.type
+        logging.info(f"Received {reset_type} reset request.")
+
+        call_result.ResetPayload(
+            status=ResetStatus.accepted
+        )
+
+        self. graceful_shutdown()
+
+        if reset_type == ResetType.soft:
+            logging.info("Performing soft reset.")
+            # Soft reset - typically a graceful restart
+            subprocess.run(["sudo", "reboot"], check=True)
+
+        elif reset_type == ResetType.hard:
+            logging.info("Performing hard reset.")
+            # Hard reset - immediate reboot without waiting for processes to close
+            subprocess.run(["sudo", "reboot", "-f"], check=True)
+
+        return 
+    
     @on('UpdateFirmware')
     async def on_update_firmware(self, request):
         url = request.location
