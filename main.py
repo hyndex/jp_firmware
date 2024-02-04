@@ -56,8 +56,7 @@ class RelayController:
 
     def close_relay(self):
         print('Charging Stopped')
-
-# Load configuration from a JSON file
+        
 def load_config(config_file):
     try:
         with open(config_file, 'r') as file:
@@ -150,9 +149,25 @@ class ChargePoint(cp):
     # Process function calls in a queue
     async def process_function_call_queue(self):
         while True:
-            function_call = await self.function_call_queue.get()
-            await function_call["function"](*function_call["args"], **function_call["kwargs"])
-            self.function_call_queue.task_done()
+            # Check if the queue size exceeds the maximum limit
+            while self.function_call_queue.qsize() > self.config.get("MaxFunctionCallQueueSize", 100):
+                logging.warning("Queue size exceeded. Discarding oldest requests.")
+                # Discard the oldest request without processing
+                await self.function_call_queue.get()
+                self.function_call_queue.task_done()
+
+            # Process the next request in the queue
+            if not self.function_call_queue.empty():
+                function_call = await self.function_call_queue.get()
+                try:
+                    await function_call["function"](*function_call["args"], **function_call["kwargs"])
+                except Exception as e:
+                    logging.error(f"Error processing function call: {e}")
+                finally:
+                    self.function_call_queue.task_done()
+
+            # Wait a brief moment before processing the next item
+            await asyncio.sleep(1)  # Adjust as needed
 
     ###########
     ## Charger Originating commands
@@ -455,15 +470,33 @@ class ChargePoint(cp):
             print(f"Transaction ID {transaction_id} not found.")
             return call_result.RemoteStopTransactionPayload(status='Rejected')
 
-# Main function to run the ChargePoint
+
+async def start_websocket_connection(cp_instance):
+    retry_interval = 1
+    max_retry_interval = 60
+
+    while True:
+        try:
+            async with websockets.connect(cp_instance.central_system_url, subprotocols=["ocpp1.6"]) as ws:
+                cp_instance.ws = ws
+                retry_interval = 1
+                cp_instance.on_connected()
+                await cp_instance.start()
+        except Exception as e:
+            logging.error(f"WebSocket connection error: {e}")
+            await asyncio.sleep(retry_interval)
+            retry_interval = min(retry_interval * 2, max_retry_interval)
+
 async def main():
-    async with websockets.connect(
-            "ws://csms.saikia.dev:8180/steve/websocket/CentralSystemService/test1", subprotocols=["ocpp1.6"]
-    ) as ws:
-        cp_instance = ChargePoint("test1", ws)
-        cp_instance.reset_data()
-        await asyncio.gather(cp_instance.start(), cp_instance.send_boot_notification(), cp_instance.heartbeat(),
-                             cp_instance.send_periodic_meter_values())
+    cp_instance = ChargePoint("test1", central_system_url="ws://csms.saikia.dev:8180/steve/websocket/CentralSystemService/test1")
+    cp_instance.reset_data()
+
+    await asyncio.gather(
+        start_websocket_connection(cp_instance),
+        cp_instance.send_boot_notification(),
+        cp_instance.heartbeat(),
+        cp_instance.send_periodic_meter_values()
+    )
 
 if __name__ == "__main__":
     asyncio.run(main())
