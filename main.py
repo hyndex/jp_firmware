@@ -488,7 +488,7 @@ async def start_websocket_connection(cp_instance):
             retry_interval = min(retry_interval * 2, max_retry_interval)
 
 async def main():
-    cp_instance = ChargePoint("test1", central_system_url="ws://csms.saikia.dev:8180/steve/websocket/CentralSystemService/test1")
+    cp_instance = ChargePoint("test1", "ws://csms.saikia.dev:8180/steve/websocket/CentralSystemService/test1")
     cp_instance.reset_data()
 
     await asyncio.gather(
