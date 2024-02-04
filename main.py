@@ -469,7 +469,20 @@ class ChargePoint(cp):
         else:
             print(f"Transaction ID {transaction_id} not found.")
             return call_result.RemoteStopTransactionPayload(status='Rejected')
+    
+    def set_websocket(self, ws):
+        self.ws = ws
 
+    async def run(self):
+        # This method will initiate all necessary tasks
+        await asyncio.gather(
+            self.send_boot_notification(),
+            self.heartbeat(),
+            self.send_periodic_meter_values()
+        )
+    def __init__(self, cp_id, central_system_url):
+        super().__init__(cp_id, None)  # Pass None for the connection initially
+        self.central_system_url = central_system_url
 
 async def start_websocket_connection(cp_instance):
     retry_interval = 1
@@ -478,10 +491,10 @@ async def start_websocket_connection(cp_instance):
     while True:
         try:
             async with websockets.connect(cp_instance.central_system_url, subprotocols=["ocpp1.6"]) as ws:
-                cp_instance.ws = ws
+                cp_instance.set_websocket(ws)
                 retry_interval = 1
-                cp_instance.on_connected()
-                await cp_instance.start()
+                # Now start the ChargePoint tasks
+                await cp_instance.run()
         except Exception as e:
             logging.error(f"WebSocket connection error: {e}")
             await asyncio.sleep(retry_interval)
@@ -490,13 +503,7 @@ async def start_websocket_connection(cp_instance):
 async def main():
     cp_instance = ChargePoint("test1", "ws://csms.saikia.dev:8180/steve/websocket/CentralSystemService/test1")
     cp_instance.reset_data()
-
-    await asyncio.gather(
-        start_websocket_connection(cp_instance),
-        cp_instance.send_boot_notification(),
-        cp_instance.heartbeat(),
-        cp_instance.send_periodic_meter_values()
-    )
+    await start_websocket_connection(cp_instance)
 
 if __name__ == "__main__":
     asyncio.run(main())
