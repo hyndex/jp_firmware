@@ -132,8 +132,8 @@ class ChargePoint(cp):
 
 
     @on(Action.Reset)
-    async def handle_reset(self, request):
-        reset_type = request.type
+    async def handle_reset(self, **kwargs):
+        reset_type = kwargs.type
         logging.info(f"Received {reset_type} reset request.")
 
         call_result.ResetPayload(
@@ -155,9 +155,9 @@ class ChargePoint(cp):
         return 
     
     @on('UpdateFirmware')
-    async def on_update_firmware(self, request):
-        url = request.location
-        firmware_file = 'new_firmware.py'
+    async def on_update_firmware(self, **kwargs):
+        url = kwargs.location
+        firmware_file = f'new_firmware_{str(datetime.now())}.py'
 
         if self.download_firmware(url, firmware_file):
             self.apply_firmware_update(firmware_file)
