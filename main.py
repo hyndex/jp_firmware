@@ -69,9 +69,9 @@ def load_config(config_file):
 # ChargePoint class that extends the OCPP ChargePoint class
 class ChargePoint(cp):
 
-    ###########
+    ##########################################
     ## Non OCPP Functions
-    ###########
+    ##########################################
 
     # Handle disconnection and attempt to reconnect
     async def handle_disconnect(self):
@@ -169,9 +169,9 @@ class ChargePoint(cp):
             # Wait a brief moment before processing the next item
             await asyncio.sleep(1)  # Adjust as needed
 
-    ###########
+    ##########################################
     ## Charger Originating commands
-    ###########
+    ##########################################
 
     # Send a boot notification to the central system
     async def send_boot_notification(self, retries=0):
@@ -329,9 +329,9 @@ class ChargePoint(cp):
                 print(response)
             await asyncio.sleep(int(self.config.get("MeterValueSampleInterval", 60)))
 
-    ###########
+    ##########################################
     ## Server Originating commands
-    ###########
+    ##########################################
 
     # Handle TriggerMessage action
     @on(Action.TriggerMessage)
