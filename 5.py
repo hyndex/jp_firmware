@@ -41,7 +41,7 @@ def get_relay_pins():
 
 start_time = datetime.now()
 
-def get_meter_value():
+def get_meter_value(connector_id):
         # Calculate the time difference in seconds
         time_diff = datetime.now() - start_time
         # Convert time difference to seconds and divide by 10 to get the meter value
@@ -200,12 +200,12 @@ class ChargePoint(cp):
     async def authorize(self, id_tag):
         request = call.AuthorizePayload(id_tag=id_tag)
         response = await self.call(request)
-        return response.id_tag_info.status == AuthorizationStatus.accepted
+        return response.id_tag_info['status'] == AuthorizationStatus.accepted
     
     
     async def start_transaction(self, connector_id, id_tag):
         if connector_id not in self.active_transactions:
-            meter_start = get_meter_value()
+            meter_start = get_meter_value(connector_id)
 
             authorize_response = await self.authorize(id_tag)
             if not authorize_response:
@@ -313,7 +313,7 @@ class ChargePoint(cp):
                 )
                 response = await self.call(request)
                 print(response)
-                await asyncio.sleep(self.config.get("MeterValueSampleInterval", 60))
+            await asyncio.sleep(self.config.get("MeterValueSampleInterval", 60))
 
 
 
@@ -326,14 +326,14 @@ class ChargePoint(cp):
         requested_message = kwargs.get('requested_message')
         connector_id = kwargs.get('connector_id', None)
 
-        if requested_message == MessageTrigger.BootNotification:
+        if requested_message == MessageTrigger.boot_notification:
             await self.function_call_queue.put({
                 "function": self.send_boot_notification,
                 "args": [],
                 "kwargs": {}
             })
             status = TriggerMessageStatus.accepted
-        elif requested_message == MessageTrigger.Heartbeat:
+        elif requested_message == MessageTrigger.heartbeat:
             await self.function_call_queue.put({
                 "function": self.heartbeat,
                 "args": [],
@@ -433,14 +433,24 @@ class ChargePoint(cp):
     @on(Action.RemoteStopTransaction)
     async def on_remote_stop_transaction(self, **kwargs):
         transaction_id = kwargs.get('transaction_id')
+        found = False
+
         for connector_id, transaction in self.active_transactions.items():
             if transaction['transaction_id'] == transaction_id:
-                await self.stop_transaction(connector_id, )
-                return call_result.RemoteStopTransactionPayload(status='Accepted')
+                # Enqueue the stop_transaction call
+                await self.function_call_queue.put({
+                    "function": self.stop_transaction,
+                    "args": [connector_id],
+                    "kwargs": {}
+                })
+                found = True
+                break
 
-        print(f"Transaction ID {transaction_id} not found.")
-        return call_result.RemoteStopTransactionPayload(status='Rejected')
-
+        if found:
+            return call_result.RemoteStopTransactionPayload(status='Accepted')
+        else:
+            print(f"Transaction ID {transaction_id} not found.")
+            return call_result.RemoteStopTransactionPayload(status='Rejected')
     
 
 async def main():
@@ -449,7 +459,7 @@ async def main():
         ) as ws:
         cp_instance = ChargePoint("test1", ws)
         cp_instance.reset_data()
-        await asyncio.gather(cp_instance.start(), cp_instance.send_boot_notification(), cp_instance.heartbeat())
+        await asyncio.gather(cp_instance.start(), cp_instance.send_boot_notification(), cp_instance.heartbeat(), cp_instance.send_periodic_meter_values())
 
 if __name__ == "__main__":
     asyncio.run(main())
