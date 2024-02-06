@@ -1,59 +1,94 @@
-# Reading PZEM-004t power sensor (new version v3.0) through Modbus-RTU protocol over TTL UART
-# Run in python3
-
-# To install library for PZEM:
-# pip3 install modbus-tk
-# pip3 install pyserial
-
-import time
-
-
-#library for PZEM-004T V3
 import serial
 import modbus_tk.defines as cst
 from modbus_tk import modbus_rtu
+import time
 
-# Connect to the slave
-serial = serial.Serial(
-                       port='/dev/ttyS0',
-                       baudrate=9600,
-                       bytesize=8,
-                       parity='N',
-                       stopbits=1,
-                       xonxoff=0
-                      )
+class CorrectedMeterReading:
+    def __init__(self, port='/dev/ttyS0', baudrate=9600, timeout=2.0, max_valid_voltage=270, max_valid_current=40, max_power_rate_increase=100):
+        self.max_valid_voltage = max_valid_voltage
+        self.max_valid_current = max_valid_current
+        self.max_power_rate_increase = max_power_rate_increase  # Max power increase per second
+        self.port = port
+        self.baudrate = baudrate
+        self.timeout = timeout
+        self.last_valid_power = 0
+        self.last_valid_time = time.time()
+        self.readings = []  # Store the last 100 readings
+        self.latest_corrected_values = {'voltage': 0, 'current': 0, 'power': 0}  # Latest corrected meter values
 
-master = modbus_rtu.RtuMaster(serial)
-master.set_timeout(2.0)
-master.set_verbose(True)
+    def add_and_correct_readings(self, voltage, current, power):
+        corrected_voltage = min(voltage, self.max_valid_voltage)
+        corrected_current = min(current, self.max_valid_current)
+        corrected_power = self.correct_power(power, corrected_voltage, corrected_current)
+        return corrected_voltage, corrected_current, corrected_power
 
-while True:
-        data = master.execute(1, cst.READ_INPUT_REGISTERS, 0, 10)
-        voltage = data[0] / 10.0 # [V]
-        current = (data[1] + (data[2] << 16)) / 1000.0 # [A]
-        power = (data[3] + (data[4] << 16)) / 10.0 # [W]
-        energy = data[5] + (data[6] << 16) # [Wh]
-        frequency = data[7] / 10.0 # [Hz]
-        powerFactor = data[8] / 100.0
-        alarm = data[9] # 0 = no alarm
+    def correct_power(self, power, voltage, current):
+        current_time = time.time()
+        time_elapsed = current_time - self.last_valid_time
+        max_power = self.last_valid_power + time_elapsed * self.max_power_rate_increase
+        if power <= max_power:
+            self.last_valid_power = power
+            self.last_valid_time = current_time
+            return power
+        estimated_power = voltage * current
+        corrected_power = min(max_power, estimated_power)
+        self.last_valid_power = corrected_power
+        self.last_valid_time = current_time
+        return corrected_power
 
-        print('Voltage [V]\t: ', voltage)
-        print('Current [A]\t: ', current)
-        print('Power [W]\t: ', power) # active power (V * I * power factor)
-        print('Energy [Wh]\t: ', energy)
-        print('Frequency [Hz]\t: ', frequency)
-        print('Power factor []\t: ', powerFactor)
-        #print('Alarm : ', alarm)
-        print("--------------------")
+    def read_pzem004t_v3_data(self, change_alarm=False, alarm_value=100, read_interval=5):
+        try:
+            ser = serial.Serial(port=self.port, baudrate=self.baudrate, bytesize=8, parity='N', stopbits=1, xonxoff=0)
+            master = modbus_rtu.RtuMaster(ser)
+            master.set_timeout(self.timeout)
+            master.set_verbose(True)
 
-        time.sleep(5)
+            if change_alarm:
+                master.execute(1, cst.WRITE_SINGLE_REGISTER, 1, output_value=alarm_value)
 
-# Changing power alarm value to 100 W
-# master.execute(1, cst.WRITE_SINGLE_REGISTER, 1, output_value=100)
+            while True:
+                data = master.execute(1, cst.READ_INPUT_REGISTERS, 0, 10)
+                voltage = data[0] / 10.0  # [V]
+                current = (data[1] + (data[2] << 16)) / 1000.0  # [A]
+                power = (data[3] + (data[4] << 16)) / 10.0  # [W]
+                voltage, current, power = self.add_and_correct_readings(voltage, current, power)
 
-#try:
-    #master.close()
-    #if slave.is_open:
-        #slave.close()
-#except:
-   # pass
+                self.latest_corrected_values = {'voltage': voltage, 'current': current, 'power': power}  # Update the latest corrected values
+
+                self.store_readings(voltage, current, power)
+
+                print('Latest Corrected Readings: Voltage [V]\t: ', voltage)
+                print('Latest Corrected Readings: Current [A]\t: ', current)
+                print('Latest Corrected Readings: Power [W]\t: ', power)
+                print("--------------------")
+
+                time.sleep(read_interval)
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+        finally:
+            try:
+                master.close()
+                if ser.is_open:
+                    ser.close()
+            except:
+                pass
+
+    def store_readings(self, voltage, current, power):
+        if len(self.readings) >= 100:
+            self.readings.pop(0)  # Remove the oldest reading to maintain size
+        self.readings.append((voltage, current, power))
+
+    def get_latest_corrected_values(self):
+        """Return the latest corrected meter values."""
+        return self.latest_corrected_values
+
+
+# Example usage
+corrector = CorrectedMeterReading()
+# Start reading and correcting data from PZEM-004T V3 sensor
+corrector.read_pzem004t_v3_data(change_alarm=True, alarm_value=100)
+
+# To fetch the latest corrected values at any time
+latest_values = corrector.get_latest_corrected_values()
+print(latest_values)
