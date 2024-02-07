@@ -3,7 +3,7 @@ import modbus_tk.defines as cst
 from modbus_tk import modbus_rtu
 import time
 
-class CorrectedMeterReading:
+class PowerMeter:
     def __init__(self, port='/dev/ttyS0', baudrate=9600, timeout=2.0, max_valid_voltage=270, max_valid_current=40, max_power_rate_increase=100):
         self.max_valid_voltage = max_valid_voltage
         self.max_valid_current = max_valid_current
@@ -46,23 +46,23 @@ class CorrectedMeterReading:
             if change_alarm:
                 master.execute(1, cst.WRITE_SINGLE_REGISTER, 1, output_value=alarm_value)
 
-            while True:
-                data = master.execute(1, cst.READ_INPUT_REGISTERS, 0, 10)
-                voltage = data[0] / 10.0  # [V]
-                current = (data[1] + (data[2] << 16)) / 1000.0  # [A]
-                power = (data[3] + (data[4] << 16)) / 10.0  # [W]
-                voltage, current, power = self.add_and_correct_readings(voltage, current, power)
+            data = master.execute(1, cst.READ_INPUT_REGISTERS, 0, 10)
+            voltage = data[0] / 10.0  # [V]
+            current = (data[1] + (data[2] << 16)) / 1000.0  # [A]
+            power = (data[3] + (data[4] << 16)) / 10.0  # [W]
+            voltage, current, power = self.add_and_correct_readings(voltage, current, power)
 
-                self.latest_corrected_values = {'voltage': voltage, 'current': current, 'power': power}  # Update the latest corrected values
+            self.latest_corrected_values = {'voltage': voltage, 'current': current, 'power': power}  # Update the latest corrected values
 
-                self.store_readings(voltage, current, power)
+            self.store_readings(voltage, current, power)
 
-                print('Latest Corrected Readings: Voltage [V]\t: ', voltage)
-                print('Latest Corrected Readings: Current [A]\t: ', current)
-                print('Latest Corrected Readings: Power [W]\t: ', power)
-                print("--------------------")
+            print('Latest Corrected Readings: Voltage [V]\t: ', voltage)
+            print('Latest Corrected Readings: Current [A]\t: ', current)
+            print('Latest Corrected Readings: Power [W]\t: ', power)
+            print("--------------------")
 
-                time.sleep(read_interval)
+            return {'voltage': voltage, 'current': current, 'power': power}
+
 
         except Exception as e:
             print(f"An error occurred: {e}")
@@ -73,6 +73,43 @@ class CorrectedMeterReading:
                     ser.close()
             except:
                 pass
+
+    def read_simple_data(self, change_alarm=False, alarm_value=100, read_interval=5):
+        try:
+            ser = serial.Serial(port=self.port, baudrate=self.baudrate, bytesize=8, parity='N', stopbits=1, xonxoff=0)
+            master = modbus_rtu.RtuMaster(ser)
+            master.set_timeout(self.timeout)
+            master.set_verbose(True)
+
+            if change_alarm:
+                master.execute(1, cst.WRITE_SINGLE_REGISTER, 1, output_value=alarm_value)
+
+            data = master.execute(1, cst.READ_INPUT_REGISTERS, 0, 10)
+            voltage = data[0] / 10.0  # [V]
+            current = (data[1] + (data[2] << 16)) / 1000.0  # [A]
+            power = (data[3] + (data[4] << 16)) / 10.0  # [W]
+
+            self.latest_corrected_values = {'voltage': voltage, 'current': current, 'power': power}  # Update the latest corrected values
+
+
+            print('Latest Readings: Voltage [V]\t: ', voltage)
+            print('Latest Readings: Current [A]\t: ', current)
+            print('Latest Readings: Power [W]\t: ', power)
+            print("--------------------")
+
+            return {'voltage': voltage, 'current': current, 'power': power}
+
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+        finally:
+            try:
+                master.close()
+                if ser.is_open:
+                    ser.close()
+            except:
+                pass
+
 
     def store_readings(self, voltage, current, power):
         if len(self.readings) >= 100:
