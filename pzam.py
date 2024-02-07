@@ -122,7 +122,7 @@ class PowerMeter:
 
 
 # Example usage
-corrector = CorrectedMeterReading()
+corrector = PowerMeter()
 # Start reading and correcting data from PZEM-004T V3 sensor
 corrector.read_pzem004t_v3_data(change_alarm=True, alarm_value=100)
 
