@@ -1,85 +1,80 @@
 #include "HLW8032.h"
-#include <cstdio>  // For printf
+#include <pigpio.h>
+#include <cstdio>
+#include <cstdint>
+#include <cmath>
 
-HLW8032::HLW8032(int rxPin)
-{
-    this->rxPin = rxPin;
-    this->serialHandle = -1;
-}
+HLW8032::HLW8032(int rxPin) : rxPin(rxPin) {}
 
-void HLW8032::begin(const char *serialPort)
-{
-    pinMode(rxPin, OUTPUT);
-    digitalWrite(rxPin, LOW);
-    delay(10);
-    this->serialHandle = serialOpen(serialPort, 4800);
-    if (this->serialHandle == -1)
-    {
-        // Handle error
+void HLW8032::begin() {
+    if (gpioInitialise() < 0) {
+        fprintf(stderr, "Failed to initialize pigpio\n");
+        return;
     }
-    digitalWrite(rxPin, HIGH);
+    gpioSetMode(rxPin, PI_INPUT);
+    gpioSetPullUpDown(rxPin, PI_PUD_UP);
 
     VF = VolR1 / (VolR2 * 1000.0);
     CF = 1.0 / (CurrentRF * 1000.0);
 }
 
-void HLW8032::SerialReadLoop()
-{
-    if (serialDataAvail(this->serialHandle) > 0)
-    {
-        delay(55);
-        int dataLen = serialDataAvail(this->serialHandle);
+uint8_t HLW8032::readByteFromRXPin() {
+    uint8_t result = 0;
+    const int bitDelay = 1000000 / 4800;
 
-        if (dataLen != 24)
-        {
-            serialFlush(this->serialHandle);
-            return;
-        }
+    while (gpioRead(rxPin) == PI_HIGH);
 
-        for (int i = 0; i < dataLen; ++i)
-        {
-            SerialTemps[i] = serialGetchar(this->serialHandle);
-            printf("Byte %d: 0x%02X\n", i, SerialTemps[i]); // Print each byte as it is read
-        }
+    gpioDelay(bitDelay / 2);
 
-        if (SerialTemps[1] != 0x5A || !Checksum())
-        {
-            return;
-        }
+    for (int i = 0; i < 8; i++) {
+        gpioDelay(bitDelay);
+        result |= (gpioRead(rxPin) << i);
+    }
 
-        VolPar = (static_cast<uint32_t>(SerialTemps[2]) << 16) +
-                 (static_cast<uint32_t>(SerialTemps[3]) << 8) + SerialTemps[4];
+    gpioDelay(bitDelay);
+    return result;
+}
 
-        if (SerialTemps[20] & 0x40)
-        {
-            VolData = (static_cast<uint32_t>(SerialTemps[5]) << 16) +
-                      (static_cast<uint32_t>(SerialTemps[6]) << 8) + SerialTemps[7];
-        }
+void HLW8032::SerialReadLoop() {
+    for (int i = 0; i < 24; ++i) {
+        SerialTemps[i] = readByteFromRXPin();
+        printf("Byte %d: 0x%02X\n", i, SerialTemps[i]);
+    }
 
-        CurrentPar = (static_cast<uint32_t>(SerialTemps[8]) << 16) +
-                     (static_cast<uint32_t>(SerialTemps[9]) << 8) + SerialTemps[10];
+    if (!Checksum()) {
+        printf("Checksum error\n");
+        return;
+    }
 
-        if (SerialTemps[20] & 0x20)
-        {
-            CurrentData = (static_cast<uint32_t>(SerialTemps[11]) << 16) +
-                          (static_cast<uint32_t>(SerialTemps[12]) << 8) + SerialTemps[13];
-        }
+    processData();
+}
 
-        PowerPar = (static_cast<uint32_t>(SerialTemps[14]) << 16) +
-                   (static_cast<uint32_t>(SerialTemps[15]) << 8) + SerialTemps[16];
+bool HLW8032::Checksum() {
+    uint8_t sum = 0;
+    for (int i = 2; i < 23; ++i) {
+        sum += SerialTemps[i];
+    }
+    return (sum == SerialTemps[23]);
+}
 
-        if (SerialTemps[20] & 0x10)
-        {
-            PowerData = (static_cast<uint32_t>(SerialTemps[17]) << 16) +
-                        (static_cast<uint32_t>(SerialTemps[18]) << 8) + SerialTemps[19];
-        }
+void HLW8032::processData() {
+    // Process the received bytes to extract electrical parameters
+    VolPar = (SerialTemps[2] << 16) | (SerialTemps[3] << 8) | SerialTemps[4];
+    CurrentPar = (SerialTemps[8] << 16) | (SerialTemps[9] << 8) | SerialTemps[10];
+    PowerPar = (SerialTemps[14] << 16) | (SerialTemps[15] << 8) | SerialTemps[16];
+    PF = (SerialTemps[21] << 8) | SerialTemps[22];
 
-        PF = (static_cast<uint32_t>(SerialTemps[21]) << 8) + SerialTemps[22];
-
-        if (SerialTemps[20] & 0x80)
-        {
-            PFData++;
-        }
+    if (SerialTemps[20] & 0x40) {
+        VolData = (SerialTemps[5] << 16) | (SerialTemps[6] << 8) | SerialTemps[7];
+    }
+    if (SerialTemps[20] & 0x20) {
+        CurrentData = (SerialTemps[11] << 16) | (SerialTemps[12] << 8) | SerialTemps[13];
+    }
+    if (SerialTemps[20] & 0x10) {
+        PowerData = (SerialTemps[17] << 16) | (SerialTemps[18] << 8) | SerialTemps[19];
+    }
+    if (SerialTemps[20] & 0x80) {
+        PFData++;
     }
 }
 
@@ -134,13 +129,7 @@ float HLW8032::GetKWh()
     return GetPFAll() / PFcnt;
 }
 
-bool HLW8032::Checksum()
-{
-    uint8_t check = 0;
-    for (int i = 2; i <= 22; ++i)
-    {
-        check += SerialTemps[i];
-    }
-    printf("Calculated checksum: %02x, Expected: %02x\n", check, SerialTemps[23]);
-    return check == SerialTemps[23];
+
+HLW8032::~HLW8032() {
+    gpioTerminate();
 }
