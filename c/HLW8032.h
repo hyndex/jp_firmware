@@ -27,6 +27,7 @@ private:
     uint8_t readByteFromRXPin();
 
     int rxPin;
+    bool serialOpen; // Declare the serialOpen variable here
     uint8_t SerialTemps[24];  // Serial data buffer
 
     float VF;

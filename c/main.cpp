@@ -1,13 +1,7 @@
 #include "HLW8032.h"
-#include <pigpio.h>
 #include <cstdio>
 
 int main() {
-    if (gpioInitialise() < 0) {
-        fprintf(stderr, "pigpio initialization failed\n");
-        return 1;
-    }
-
     HLW8032 hlw8032(25); // GPIO pin 25
     hlw8032.begin();
 

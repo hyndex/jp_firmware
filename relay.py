@@ -15,7 +15,7 @@ relay_pin = 18
 pi.set_mode(relay_pin, pigpio.OUTPUT)
 
 # Turn on the relay (Assuming the relay is active HIGH)
-pi.write(relay_pin, 0)
+pi.write(relay_pin, 1)
 
 
 print("Relay on GPIO 18 is turned ON.")
