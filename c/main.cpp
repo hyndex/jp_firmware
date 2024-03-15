@@ -7,12 +7,12 @@ int main() {
 
     while (true) {
         hlw8032.SerialReadLoop();
-        float voltage = hlw8032.GetVol();
-        float current = hlw8032.GetCurrent();
-        float power = hlw8032.GetActivePower();
-        printf("Voltage: %.2f V, Current: %.2f A, Power: %.2f W\n", voltage, current, power);
+        // float voltage = hlw8032.GetVol();
+        // float current = hlw8032.GetCurrent();
+        // float power = hlw8032.GetActivePower();
+        // printf("Voltage: %.2f V, Current: %.2f A, Power: %.2f W\n", voltage, current, power);
 
-        gpioDelay(1000000); // Delay for 1 second
+        // gpioDelay(1000000); // Delay for 1 second
     }
 
     return 0;

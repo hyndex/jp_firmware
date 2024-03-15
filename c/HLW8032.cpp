@@ -31,16 +31,18 @@ void HLW8032::begin()
 
 unsigned char HLW8032::ReadByte()
 {
-    unsigned char *buf;
-    int count = gpioSerialRead(rxPin, buf, 1);
 
-    if (count)
+    unsigned char buf[1];
+    while (1)
     {
-        unsigned char val = *buf;
-        return val;
+        time_sleep(0.003);
+        int count = gpioSerialRead(rxPin, buf, 1);
+        if (count)
+        {
+            unsigned char val = buf[0];
+            return val;
+        }
     }
-
-    return false;
 }
 
 void HLW8032::SerialReadLoop()
@@ -54,18 +56,18 @@ void HLW8032::SerialReadLoop()
 
         if (secondByte != 0x5A)
         {
-            printf("secondByte != 0x5A\n");
-
+            printf("\n\nin IF\n\n");
             // flush rest
-            for (int i = 0; i < 24; i++)
+            while (ReadByte() != 0x5A);
+            // printf("5A Detected");
+
+            for (int i = 0; i < 22; i++)
             {
-                if (!ReadByte())
-                {
-                    exit;
-                }
+                unsigned char x = ReadByte();
             }
 
-            // return this time. will parse agin next time
+            time_sleep(0.05);
+            // printf("returning due to fucked up");
             return;
         }
 
@@ -73,12 +75,18 @@ void HLW8032::SerialReadLoop()
         SerialTemps[0] = firstByte;
         SerialTemps[1] = secondByte;
 
+        // printf("\nFirst: ");
+        // printf("%x, ", firstByte);
+        // printf("Second: ");
+        // printf("%x \n", secondByte);
+
         // read and populate rest of the bytes
         for (int i = 2; i < 24; i++)
         {
             SerialTemps[i] = ReadByte();
         }
 
+        time_sleep(0.05);
         // print 24 bytes
         for (int i = 0; i < 24; i++)
         {
@@ -176,6 +184,26 @@ float HLW8032::GetCurrent()
 float HLW8032::GetInspectingPower()
 {
     return GetVol() * GetCurrent();
+}
+
+float HLW8032::GetActivePower()
+{
+    if ((SerialTemps[20] & 0x10))
+    { // Power valid
+        if ((SerialTemps[0] & 0xF2) == 0xF2)
+        { // Power cycle exceeds range
+            return 0;
+        }
+        else
+        {
+            float FPowerPar = PowerPar;
+            float FPowerData = PowerData;
+            // float Power = ((float)PowerPar/(float)PowerData) * VF * CF;  // 求有功功率
+            float Power = (FPowerPar / FPowerData) * VF * CF; // 求有功功率
+            return Power;
+        }
+    }
+    return 0;
 }
 
 float HLW8032::GetPowerFactor()

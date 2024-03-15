@@ -1,5 +1,7 @@
 #ifndef HLW8032_H
 #define HLW8032_H
+#include <cstdint> // Add this line
+
 
 class HLW8032 {
 public:
