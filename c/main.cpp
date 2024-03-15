@@ -1,5 +1,5 @@
 #include "HLW8032.h"
-#include <cstdio>
+#include <stdio.h>
 
 int main() {
     HLW8032 hlw8032(25); // GPIO pin 25

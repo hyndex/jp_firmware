@@ -1,13 +1,11 @@
 #ifndef HLW8032_H
 #define HLW8032_H
 
-#include <cstdint>
-#include <cmath>
-
 class HLW8032 {
 public:
     HLW8032(int rxPin);
     void begin();
+    unsigned char ReadByte();
     void SerialReadLoop();
     float GetVol();
     float GetVolAnalog();

@@ -29,44 +29,70 @@ void HLW8032::begin()
     CF = 1.0 / (CurrentRF * 1000.0); // Current factor calculation
 }
 
+unsigned char HLW8032::ReadByte()
+{
+    unsigned char *buf;
+    int count = gpioSerialRead(rxPin, buf, 1);
+
+    if (count)
+    {
+        unsigned char val = *buf;
+        return val;
+    }
+
+    return false;
+}
+
 void HLW8032::SerialReadLoop()
 {
-    char buf[24];
+    unsigned char buf[1];
 
     if (serialOpen)
     {
-        int count = gpioSerialRead(rxPin, buf, sizeof(buf));
+        unsigned char firstByte = ReadByte();
+        unsigned char secondByte = ReadByte();
 
-        // log
-        printf("count: %d\n", count);
-
-        // read rest and ignore
-        if (count != 24)
+        if (secondByte != 0x5A)
         {
-            int x = gpioSerialRead(rxPin, buf, sizeof(buf));
+            printf("secondByte != 0x5A\n");
+
+            // flush rest
+            for (int i = 0; i < 24; i++)
+            {
+                if (!ReadByte())
+                {
+                    exit;
+                }
+            }
+
+            // return this time. will parse agin next time
             return;
         }
 
-        // read full 24 bytes
-        for (int i = 0; i < 24; i++)
+        // populate SerialTemps
+        SerialTemps[0] = firstByte;
+        SerialTemps[1] = secondByte;
+
+        // read and populate rest of the bytes
+        for (int i = 2; i < 24; i++)
         {
-            SerialTemps[i] = buf[i];
+            SerialTemps[i] = ReadByte();
         }
 
-// check reg
-        if (SerialTemps[1] != 0x5A) // 标记识别,如果不是就抛弃
-		{
-			while (SerialID->read() >= 0)
-			{
-			}
-			return;
-		}
+        // print 24 bytes
+        for (int i = 0; i < 24; i++)
+        {
+            printf("%x, ", SerialTemps[i]);
+        }
 
-		if (Checksum() == false) // 校验测试，如果错误就抛弃
-		{
-			// Serial.println("crc error");
-			return;
-		}
+        if (Checksum() == false) // 校验测试，如果错误就抛弃
+        {
+            return;
+        }
+        else
+        {
+            processData();
+        }
     }
 }
 
@@ -162,6 +188,7 @@ uint16_t HLW8032::GetPF()
     return PF;
 }
 
+uint32_t HLW8032::GetPFAll()
 {
     return (PFData * 65536) + PF;
 }
