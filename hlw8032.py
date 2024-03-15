@@ -55,7 +55,7 @@ if __name__ == '__main__':
                 print("Voltage:", data.get('voltage_reg'))
                 print("Current:", data.get('current_reg'))
                 print("Power:", data.get('power_reg'))
-            time.sleep(1)
+            time.sleep(3)
     except KeyboardInterrupt:
         print("Exiting...")
     finally:

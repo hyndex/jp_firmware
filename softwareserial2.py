@@ -9,12 +9,12 @@ class HLW8032:
         self.rx_pin = rx_pin
         self.baudrate = baudrate
         self.pi.set_mode(self.rx_pin, pigpio.INPUT)
-        self.serial = self.pi.serial_open(rx_pin, baudrate)
+        self.pi.bb_serial_read_open(self.rx_pin, baudrate)  # Open bit-banging serial read
         self.data = {}
 
     def read_data(self):
-        if self.pi.serial_data_available(self.serial) >= 24:
-            raw_data = self.pi.serial_read(self.serial, 24)[1]  # Read 24 bytes
+        count, raw_data = self.pi.bb_serial_read(self.rx_pin)
+        if count >= 24:
             if self.is_data_valid(raw_data):
                 self.parse_data(raw_data)
             else:
@@ -47,7 +47,7 @@ class HLW8032:
         return self.data
 
     def close(self):
-        self.pi.serial_close(self.serial)
+        self.pi.bb_serial_read_close(self.rx_pin)  # Close bit-banging serial read
         self.pi.stop()
 
 # Usage example
@@ -61,7 +61,7 @@ if __name__ == '__main__':
                 print("Voltage:", data.get('voltage_reg'))
                 print("Current:", data.get('current_reg'))
                 print("Power:", data.get('power_reg'))
-            time.sleep(3)
+            # time.sleep(0.1)
     except KeyboardInterrupt:
         print("Exiting...")
     finally:

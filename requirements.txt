@@ -1,7 +1,4 @@
 asyncio
-logging
 requests
 websockets
 ocpp
-pigpio 
-python3-pigpio
