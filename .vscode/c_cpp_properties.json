@@ -1,0 +1,13 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**/**",
+                "/usr/include/linux/"
+            ],
+            "defines": []
+        }
+    ],
+    "version": 4
+}
