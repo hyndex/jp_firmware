@@ -26,6 +26,14 @@ class HLW8032:
             bit = self.read_bit()
             byte |= bit << i
             time.sleep(1/4800)  # Match the baud rate
+
+        hex_data = hex(byte)
+        # print(hex_data)
+        # a = 0
+        if hex_data == '0x5a':
+        #     print('A', packet, len(packet))
+            print('B', hex_data)
+        #     a = 1
         return byte
 
     def serial_read_loop(self):
