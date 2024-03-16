@@ -72,10 +72,10 @@ void HLW8032::SerialReadLoop()
 
     if (Checksum())
     {
-        for (int i = 0; i < 24; i++)
-        {
-            printf("%02X, ", SerialTemps[i]);
-        }
+        // for (int i = 0; i < 24; i++)
+        // {
+        //     printf("%02X, ", SerialTemps[i]);
+        // }
         processData();
     }
 }
@@ -90,7 +90,7 @@ bool HLW8032::Checksum()
 
     if (check == SerialTemps[23])
     {
-        printf("\n\ncount: %d Checksum Valid\n", ++validcount);
+        // printf("\n\ncount: %d Checksum Valid\n", ++validcount);
         return true;
     }
     return false;
@@ -122,7 +122,7 @@ void HLW8032::processData()
 
     float energy = static_cast<float>(EnergyData) * Ke;
 
-    printf("Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Energy: %.2f Wh\n", voltage, current, power, energy);
+    printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Energy: %.2f Wh\n", rxPin ,voltage, current, power, energy);
 }
 
 float HLW8032::GetVol()
