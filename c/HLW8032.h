@@ -19,6 +19,7 @@ public:
     uint16_t GetPF();
     uint32_t GetPFAll();
     float GetKWh();
+    float GetEnergy(); // Function to get energy
     ~HLW8032();
 
 private:
@@ -45,6 +46,12 @@ private:
     uint32_t VolR1 = 1880000;
     uint32_t VolR2 = 1000;
     float CurrentRF = 0.001;
+
+    float Kv; // Voltage coefficient
+    float Ki; // Current coefficient
+    float Kp; // Power coefficient
+    uint32_t EnergyData = 0; // Variable to store energy data
+    float Ke;                // Energy coefficient
 };
 
 #endif // HLW8032_H
