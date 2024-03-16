@@ -1,6 +1,7 @@
 #ifndef HLW8032_H
 #define HLW8032_H
 #include <cstdint>
+#include <fstream> // Include for file I/O
 
 class HLW8032 {
 public:
@@ -33,6 +34,7 @@ private:
     uint32_t PFData;
     float VF, CF, Kv, Ki, Kp, Ke;
     int validcount;
+    std::ofstream meterFile; // Add this line
 };
 
 #endif // HLW8032_H

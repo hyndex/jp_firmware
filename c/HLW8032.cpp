@@ -3,8 +3,17 @@
 #include <cstdio>
 #include <cstdint>
 #include <cmath>
+#include <fstream> // Include for file I/O
+#include <chrono>
+#include <iomanip>
+// #include "json.hpp" // or <nlohmann/json.hpp> depending on your setup
 
-HLW8032::HLW8032(int rxPin) : rxPin(rxPin), serialOpen(false), validcount(0) {}
+
+HLW8032::HLW8032(int rxPin) : rxPin(rxPin), serialOpen(false), validcount(0) {
+    // Open a file in /dev/shm for writing meter readings
+    std::string filename = "/dev/shm/" + std::to_string(rxPin) + "_meter.txt";
+    meterFile.open(filename, std::ios::out);
+}
 
 void HLW8032::begin()
 {
@@ -122,7 +131,32 @@ void HLW8032::processData()
 
     float energy = static_cast<float>(EnergyData) * Ke;
 
-    printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Energy: %.2f Wh\n", rxPin ,voltage, current, power, energy);
+    // Get the current time
+    auto now = std::chrono::system_clock::now();
+    auto now_time_t = std::chrono::system_clock::to_time_t(now);
+    auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+
+    // Format the timestamp
+    std::stringstream timestamp;
+    timestamp << std::put_time(std::localtime(&now_time_t), "%Y-%m-%d %H:%M:%S");
+    timestamp << '.' << std::setfill('0') << std::setw(3) << now_ms.count();
+
+    // Construct the JSON string
+    std::stringstream json;
+    json << "{";
+    json << "\"timestamp\": \"" << timestamp.str() << "\", ";
+    json << "\"gpio\": " << rxPin << ", ";
+    json << "\"voltage\": " << voltage << ", ";
+    json << "\"current\": " << current << ", ";
+    json << "\"power\": " << power << ", ";
+    json << "\"energy\": " << energy;
+    json << "}";
+
+    // Write the JSON string to the file
+    if (meterFile.is_open()) {
+        meterFile << json.str() << std::endl;
+    }    
+    // printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Energy: %.2f Wh\n", rxPin ,voltage, current, power, energy);
 }
 
 float HLW8032::GetVol()
@@ -184,11 +218,13 @@ float HLW8032::GetKWh()
     return GetPFAll() / PFcnt;
 }
 
-HLW8032::~HLW8032()
-{
-    if (serialOpen)
-    {
+HLW8032::~HLW8032() {
+    if (serialOpen) {
         gpioSerialReadClose(rxPin);
     }
     gpioTerminate();
+    // Close the file
+    if (meterFile.is_open()) {
+        meterFile.close();
+    }
 }
