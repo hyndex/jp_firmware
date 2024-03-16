@@ -56,41 +56,32 @@ void HLW8032::SerialReadLoop()
 
         if (secondByte != 0x5A)
         {
-            printf("\n\nin IF\n\n");
-            // flush rest
-            while (ReadByte() != 0x5A);
-            // printf("5A Detected");
-
-            for (int i = 0; i < 22; i++)
+            // printf("\n Missed");
+            while (secondByte != 0x5A)
             {
-                unsigned char x = ReadByte();
-            }
-
-            time_sleep(0.05);
-            // printf("returning due to fucked up");
-            return;
+                firstByte = secondByte;
+                secondByte = ReadByte();
+                // printf(". ");
+            };
+            // printf("\n");
         }
 
         // populate SerialTemps
         SerialTemps[0] = firstByte;
         SerialTemps[1] = secondByte;
 
-        // printf("\nFirst: ");
-        // printf("%x, ", firstByte);
-        // printf("Second: ");
-        // printf("%x \n", secondByte);
-
         // read and populate rest of the bytes
         for (int i = 2; i < 24; i++)
         {
-            SerialTemps[i] = ReadByte();
+            SerialTemps[i] = (unsigned int)(ReadByte() & 0xFF);
         }
 
-        time_sleep(0.05);
+        // time_sleep(0.05);
         // print 24 bytes
         for (int i = 0; i < 24; i++)
         {
-            printf("%x, ", SerialTemps[i]);
+            printf("%02X, ", SerialTemps[i]);
+            // printf("status = 0x%02X\n", (unsigned int)( SerialTemps[i] & 0xFF));
         }
 
         if (Checksum() == false) // 校验测试，如果错误就抛弃
@@ -104,27 +95,82 @@ void HLW8032::SerialReadLoop()
     }
 }
 
+// bool HLW8032::Checksum()
+// {
+//     uint8_t sum = 0;
+//     for (int i = 2; i < 23; ++i)
+//     { // Starting from byte 2 as per protocol
+//         sum += SerialTemps[i];
+//     }
+//     sum = ~sum; // Invert the sum as part of checksum calculation
+//     sum += 1;   // Add 1 to the inverted sum, assuming two's complement
+//     bool isValid = (sum == SerialTemps[23]);
+
+//     printf("sum %08b, ", sum & 0xFF);
+//     printf("SerialTemps[23] %08b, ", SerialTemps[23] & 0xFF);
+
+//     if (isValid)
+//     {
+//         printf("Checksum Valid\n");
+//     }
+//     else
+//     {
+//         printf("Checksum Invalid\n");
+//     }
+
+//     return isValid;
+// }
+
+const char *bit_rep[16] = {
+    [0] = "0000",
+    [1] = "0001",
+    [2] = "0010",
+    [3] = "0011",
+    [4] = "0100",
+    [5] = "0101",
+    [6] = "0110",
+    [7] = "0111",
+    [8] = "1000",
+    [9] = "1001",
+    [10] = "1010",
+    [11] = "1011",
+    [12] = "1100",
+    [13] = "1101",
+    [14] = "1110",
+    [15] = "1111",
+};
+
+void print_byte(uint8_t byte)
+{
+    printf("%s%s", bit_rep[byte >> 4], bit_rep[byte & 0x0F]);
+}
+
 bool HLW8032::Checksum()
 {
-    uint8_t sum = 0;
-    for (int i = 2; i < 23; ++i)
-    { // Starting from byte 2 as per protocol
-        sum += SerialTemps[i];
-    }
-    sum = ~sum; // Invert the sum as part of checksum calculation
-    sum += 1;   // Add 1 to the inverted sum, assuming two's complement
-    bool isValid = (sum == SerialTemps[23]);
-
-    if (isValid)
+    uint8_t check = 0;
+    for (uint8_t a = 2; a <= 22; a++)
     {
+        check = check + (uint8_t)SerialTemps[a];
+    }
+    printf("Check %02X, ", check & 0xFF);
+    printf("SerialTemps[23] %02X, ", SerialTemps[23] & 0xFF);
+
+    printf("\nCheck: ");
+    print_byte(check);
+    printf("\nSerialTemps: ");
+    print_byte(SerialTemps[23]);
+
+    if (check == (uint8_t)SerialTemps[23])
+    {
+        // 校验通过
         printf("Checksum Valid\n");
+        return true;
     }
     else
     {
         printf("Checksum Invalid\n");
+        return false; // 校验不通过
     }
-
-    return isValid;
 }
 
 void HLW8032::processData()
