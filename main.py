@@ -69,6 +69,7 @@ def load_config(config_file):
 
 # ChargePoint class that extends the OCPP ChargePoint class
 class ChargePoint(cp):
+    
 
     ###########
     ## Non OCPP Functions
@@ -121,6 +122,15 @@ class ChargePoint(cp):
         self.function_call_queue = asyncio.Queue()
         asyncio.create_task(self.process_function_call_queue())
 
+        # Initialize connector_status dictionary with all connectors set to 'Available' and notification flag as False
+        num_connectors = int(self.config.get("NumberOfConnectors", 2))
+        self.connector_status = {connector_id: {'status': 'Available', 'notification_sent': False} for connector_id in range(1, num_connectors + 1)}
+
+        # Send initial status notifications for all connectors
+        for connector_id in self.connector_status:
+            self.send_status_notification(connector_id, self.connector_status[connector_id]['status'])
+
+
     # Download firmware from a given URL
     def download_firmware(self, url, destination):
         try:
@@ -151,14 +161,18 @@ class ChargePoint(cp):
     async def process_function_call_queue(self):
         while True:
             function_call = await self.function_call_queue.get()
-            await function_call["function"](*function_call["args"], **function_call["kwargs"])
+            logging.info(f"Processing function call: {function_call['function'].__name__}")
+            
+            # Run the function call as a separate task
+            asyncio.create_task(function_call["function"](*function_call["args"], **function_call["kwargs"]))
+            
             self.function_call_queue.task_done()
+
 
     ###########
     ## Charger Originating commands
     ###########
 
-    # Send a boot notification to the central system
     async def send_boot_notification(self, retries=0):
         if retries > int(self.config.get("MaxBootNotificationRetries", 5)):
             logging.error("Max boot notification retries reached. Giving up.")
@@ -173,12 +187,19 @@ class ChargePoint(cp):
 
         try:
             response = await self.call(request)
-            logging.info(f"Boot notification response: {response}")  # Log the response
+            logging.info(f"Boot notification response: {response}")
 
             if response.status == RegistrationStatus.accepted:
                 self.connected = True
                 logging.info("Connected to central system.")
-                return
+
+                # Send StatusNotification for each connector after successful boot notification
+                for connector_id in range(1, int(self.config.get("NumberOfConnectors", 2)) + 1):
+                    await self.function_call_queue.put({
+                        "function": self.send_status_notification,
+                        "args": [connector_id, "Available"],
+                        "kwargs": {}
+                    })
             else:
                 logging.warning("Boot notification not accepted. Retrying...")
                 await asyncio.sleep(int(self.config.get("BootNotificationRetryInterval", 10)))
@@ -188,10 +209,11 @@ class ChargePoint(cp):
             await asyncio.sleep(int(self.config.get("BootNotificationRetryInterval", 10)))
             await self.send_boot_notification(retries + 1)
 
+            
     # Send a periodic heartbeat message to the central system
     async def heartbeat(self):
         while True:
-            await asyncio.sleep(int(self.config.get('HeartbeatInterval'), 30))  # Wait for 2 seconds
+            await asyncio.sleep(int(self.config.get('HeartbeatInterval'), 30)) 
             request = call.HeartbeatPayload()
             response = await self.call(request)
             logging.info(f"Heartbeat sent/received at {datetime.now()}: {response}")
@@ -202,6 +224,17 @@ class ChargePoint(cp):
         response = await self.call(request)
         return response.id_tag_info['status'] == AuthorizationStatus.accepted
 
+    
+    async def send_status_notification(self, connector_id, status, error_code="NoError"):
+        request = call.StatusNotificationPayload(
+            connector_id=connector_id,
+            status=status,
+            error_code=error_code
+        )
+        response = await self.call(request)
+        logging.info(f"StatusNotification sent for connector {connector_id} with status {status}")
+        return response
+    
     # Start a charging transaction
     async def start_transaction(self, connector_id, id_tag):
         if connector_id not in self.active_transactions:
@@ -230,7 +263,22 @@ class ChargePoint(cp):
 
             self.active_transactions[connector_id] = transaction
 
+            # Open the relay immediately
             self.relay_controllers[connector_id].open_relay()
+
+            # Enqueue StatusNotification for 'Charging'
+            await self.function_call_queue.put({
+                "function": self.call,
+                "args": [
+                    call.StatusNotificationPayload(
+                        connector_id=connector_id,
+                        status='Charging',
+                        error_code='NoError'
+                    )
+                ],
+                "kwargs": {}
+            })
+
             logging.info(f"Transaction {transaction_id} started on connector {connector_id}")
             return True
         else:
@@ -263,6 +311,38 @@ class ChargePoint(cp):
             except Exception as e:
                 logging.error(f"Error occurred while stopping transaction: {e}")
 
+            # Enqueue StatusNotification for 'Finishing'
+            await self.function_call_queue.put({
+                "function": self.call,
+                "args": [
+                    call.StatusNotificationPayload(
+                        connector_id=connector_id,
+                        status='Finishing',
+                        error_code='NoError'
+                    )
+                ],
+                "kwargs": {}
+            })
+
+            # Enqueue a delay task
+            await self.function_call_queue.put({
+                "function": asyncio.sleep,
+                "args": [20],
+                "kwargs": {}
+            })
+
+            # Enqueue StatusNotification for 'Available'
+            await self.function_call_queue.put({
+                "function": self.call,
+                "args": [
+                    call.StatusNotificationPayload(
+                        connector_id=connector_id,
+                        status='Available',
+                        error_code='NoError'
+                    )
+                ],
+                "kwargs": {}
+            })
             return True
         else:
             logging.warning(f"No active transaction found on connector {connector_id}")
@@ -335,6 +415,16 @@ class ChargePoint(cp):
             await self.function_call_queue.put({
                 "function": self.heartbeat,
                 "args": [],
+                "kwargs": {}
+            })
+            status = TriggerMessageStatus.accepted
+        elif requested_message == MessageTrigger.status_notification:
+            # Check if connector_id is provided, otherwise use default connector_id
+            connector_id = connector_id if connector_id is not None else 1
+            # Send status notification for the specified connector
+            await self.function_call_queue.put({
+                "function": self.send_status_notification,
+                "args": [connector_id, "Available"],  # Assuming status is 'Available' for demonstration
                 "kwargs": {}
             })
             status = TriggerMessageStatus.accepted
@@ -458,9 +548,9 @@ class ChargePoint(cp):
 # Main function to run the ChargePoint
 async def main():
     async with websockets.connect(
-            "ws://csms.saikia.dev:8180/steve/websocket/CentralSystemService/test1", subprotocols=["ocpp1.6"]
+            "ws://ocpp-test.joulepoint.com:80/jyotisman120", subprotocols=["ocpp1.6"]
     ) as ws:
-        cp_instance = ChargePoint("test1", ws)
+        cp_instance = ChargePoint("joulepoint781", ws)
         cp_instance.reset_data()
         await asyncio.gather(cp_instance.start(), cp_instance.send_boot_notification(), cp_instance.heartbeat(),
                              cp_instance.send_periodic_meter_values())
