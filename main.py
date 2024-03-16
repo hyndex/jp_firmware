@@ -70,7 +70,6 @@ def load_config(config_file):
 # ChargePoint class that extends the OCPP ChargePoint class
 class ChargePoint(cp):
     
-
     ###########
     ## Non OCPP Functions
     ###########
@@ -119,17 +118,13 @@ class ChargePoint(cp):
         self.relay_controllers = {connector_id: RelayController(relay_pin) for connector_id, relay_pin in
                                   get_relay_pins().items()}
         self.active_transactions = {}
+        # Initialize the connector status dictionary
+
+        self.connector_status = {connector_id: {"status": "Available", "error_code": "NoError", "notification_sent": False}
+                        for connector_id in range(1, int(self.config.get("NumberOfConnectors", 2)) + 1)}
+
         self.function_call_queue = asyncio.Queue()
         asyncio.create_task(self.process_function_call_queue())
-
-        # Initialize connector_status dictionary with all connectors set to 'Available' and notification flag as False
-        num_connectors = int(self.config.get("NumberOfConnectors", 2))
-        self.connector_status = {connector_id: {'status': 'Available', 'notification_sent': False} for connector_id in range(1, num_connectors + 1)}
-
-        # Send initial status notifications for all connectors
-        for connector_id in self.connector_status:
-            self.send_status_notification(connector_id, self.connector_status[connector_id]['status'])
-
 
     # Download firmware from a given URL
     def download_firmware(self, url, destination):
@@ -162,11 +157,21 @@ class ChargePoint(cp):
         while True:
             function_call = await self.function_call_queue.get()
             logging.info(f"Processing function call: {function_call['function'].__name__}")
-            
-            # Run the function call as a separate task
-            asyncio.create_task(function_call["function"](*function_call["args"], **function_call["kwargs"]))
-            
-            self.function_call_queue.task_done()
+
+            try:
+                # Create a new task for the function call
+                if asyncio.iscoroutinefunction(function_call["function"]):
+                    asyncio.create_task(function_call["function"](*function_call["args"], **function_call["kwargs"]))
+                else:
+                    # If the function is not a coroutine, run it in the executor to avoid blocking
+                    loop = asyncio.get_event_loop()
+                    loop.run_in_executor(None, function_call["function"], *function_call["args"], **function_call["kwargs"])
+            except Exception as e:
+                logging.error(f"Error processing function call: {e}")
+            finally:
+                self.function_call_queue.task_done()
+
+
 
 
     ###########
@@ -197,7 +202,7 @@ class ChargePoint(cp):
                 for connector_id in range(1, int(self.config.get("NumberOfConnectors", 2)) + 1):
                     await self.function_call_queue.put({
                         "function": self.send_status_notification,
-                        "args": [connector_id, "Available"],
+                        "args": [connector_id],
                         "kwargs": {}
                     })
             else:
@@ -225,15 +230,23 @@ class ChargePoint(cp):
         return response.id_tag_info['status'] == AuthorizationStatus.accepted
 
     
-    async def send_status_notification(self, connector_id, status, error_code="NoError"):
+    async def send_status_notifications_loop(self):
+        while True:
+            for connector_id, status_info in self.connector_status.items():
+                if not status_info['notification_sent']:
+                    await self.send_status_notification(connector_id)
+            await asyncio.sleep(1)  # Adjust the interval as needed
+
+    async def send_status_notification(self, connector_id):
+        status_info = self.connector_status[connector_id]
         request = call.StatusNotificationPayload(
             connector_id=connector_id,
-            status=status,
-            error_code=error_code
+            status=status_info['status'],
+            error_code=status_info['error_code']
         )
-        response = await self.call(request)
-        logging.info(f"StatusNotification sent for connector {connector_id} with status {status}")
-        return response
+        await self.call(request)
+        status_info['notification_sent'] = True
+        logging.info(f"StatusNotification sent for connector {connector_id} with status {status_info['status']} and error code {status_info['error_code']}")
     
     # Start a charging transaction
     async def start_transaction(self, connector_id, id_tag):
@@ -267,17 +280,23 @@ class ChargePoint(cp):
             self.relay_controllers[connector_id].open_relay()
 
             # Enqueue StatusNotification for 'Charging'
-            await self.function_call_queue.put({
-                "function": self.call,
-                "args": [
-                    call.StatusNotificationPayload(
-                        connector_id=connector_id,
-                        status='Charging',
-                        error_code='NoError'
-                    )
-                ],
-                "kwargs": {}
-            })
+
+            # Update connector status to 'Charging'
+            self.connector_status[connector_id]['status'] = 'Charging'
+            self.connector_status[connector_id]['error_code'] = 'NoError'
+            self.connector_status[connector_id]['notification_sent'] = False
+
+            # await self.function_call_queue.put({
+            #     "function": self.call,
+            #     "args": [
+            #         call.StatusNotificationPayload(
+            #             connector_id=connector_id,
+            #             status='Charging',
+            #             error_code='NoError'
+            #         )
+            #     ],
+            #     "kwargs": {}
+            # })
 
             logging.info(f"Transaction {transaction_id} started on connector {connector_id}")
             return True
@@ -312,17 +331,23 @@ class ChargePoint(cp):
                 logging.error(f"Error occurred while stopping transaction: {e}")
 
             # Enqueue StatusNotification for 'Finishing'
-            await self.function_call_queue.put({
-                "function": self.call,
-                "args": [
-                    call.StatusNotificationPayload(
-                        connector_id=connector_id,
-                        status='Finishing',
-                        error_code='NoError'
-                    )
-                ],
-                "kwargs": {}
-            })
+            # await self.function_call_queue.put({
+            #     "function": self.call,
+            #     "args": [
+            #         call.StatusNotificationPayload(
+            #             connector_id=connector_id,
+            #             status='Finishing',
+            #             error_code='NoError'
+            #         )
+            #     ],
+            #     "kwargs": {}
+            # })
+            
+            # Update connector status to 'Available'
+            self.connector_status[connector_id]['status'] = 'Available'
+            self.connector_status[connector_id]['error_code'] = 'NoError'
+            self.connector_status[connector_id]['notification_sent'] = False
+
 
             # Enqueue a delay task
             await self.function_call_queue.put({
@@ -424,7 +449,7 @@ class ChargePoint(cp):
             # Send status notification for the specified connector
             await self.function_call_queue.put({
                 "function": self.send_status_notification,
-                "args": [connector_id, "Available"],  # Assuming status is 'Available' for demonstration
+                "args": [connector_id],  # Assuming status is 'Available' for demonstration
                 "kwargs": {}
             })
             status = TriggerMessageStatus.accepted
@@ -548,12 +573,12 @@ class ChargePoint(cp):
 # Main function to run the ChargePoint
 async def main():
     async with websockets.connect(
-            "ws://ocpp-test.joulepoint.com:80/jyotisman120", subprotocols=["ocpp1.6"]
+            "wss://9223-ionnest-ocppserver-9t47xwcd6ef.ws-us110.gitpod.io/jyotisman120", subprotocols=["ocpp1.6j"]
     ) as ws:
         cp_instance = ChargePoint("joulepoint781", ws)
         cp_instance.reset_data()
         await asyncio.gather(cp_instance.start(), cp_instance.send_boot_notification(), cp_instance.heartbeat(),
-                             cp_instance.send_periodic_meter_values())
+                             cp_instance.send_periodic_meter_values(), cp_instance.send_status_notifications_loop())
 
 if __name__ == "__main__":
     asyncio.run(main())
