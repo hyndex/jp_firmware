@@ -1,7 +1,6 @@
 #ifndef HLW8032_H
 #define HLW8032_H
-#include <cstdint> // Add this line
-
+#include <cstdint>
 
 class HLW8032 {
 public:
@@ -19,39 +18,21 @@ public:
     uint16_t GetPF();
     uint32_t GetPFAll();
     float GetKWh();
-    float GetEnergy(); // Function to get energy
+    float GetEnergy();
     ~HLW8032();
 
 private:
     bool Checksum();
     void processData();
-    uint8_t readByteFromRXPin();
 
     int rxPin;
-    bool serialOpen; // Declare the serialOpen variable here
-    uint8_t SerialTemps[24];  // Serial data buffer
-
-    float VF;
-    float CF;
-
-    uint32_t VolPar = 0;
-    uint32_t CurrentPar = 0;
-    uint32_t PowerPar = 0;
-    uint32_t CurrentData = 0;
-    uint32_t VolData = 0;
-    uint32_t PowerData = 0;
-    uint16_t PF = 0;
-    uint32_t PFData = 0;
-
-    uint32_t VolR1 = 1880000;
-    uint32_t VolR2 = 1000;
-    float CurrentRF = 0.001;
-
-    float Kv; // Voltage coefficient
-    float Ki; // Current coefficient
-    float Kp; // Power coefficient
-    uint32_t EnergyData = 0; // Variable to store energy data
-    float Ke;                // Energy coefficient
+    bool serialOpen;
+    uint8_t SerialTemps[24];
+    uint32_t VolPar, CurrentPar, PowerPar, CurrentData, VolData, PowerData, EnergyData;
+    uint16_t PF;
+    uint32_t PFData;
+    float VF, CF, Kv, Ki, Kp, Ke;
+    int validcount;
 };
 
 #endif // HLW8032_H
