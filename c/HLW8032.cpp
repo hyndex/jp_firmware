@@ -103,10 +103,10 @@ bool HLW8032::Checksum()
 
 void HLW8032::processData()
 {
-    if (!Checksum())
-    {
-        return;
-    }
+    // if (!Checksum())
+    // {
+    //     return;
+    // }
 
     VolPar = (SerialTemps[2] << 16) | (SerialTemps[3] << 8) | SerialTemps[4];
     CurrentPar = (SerialTemps[8] << 16) | (SerialTemps[9] << 8) | SerialTemps[10];
