@@ -62,7 +62,7 @@ unsigned char HLW8032::ReadByte()
     while (true)
     {
                     // 0.002933
-        time_sleep(0.002933); // Adjust the sleep time as needed
+        time_sleep(0.0008); // Adjust the sleep time as needed
         if (gpioSerialRead(rxPin, buf, 1) > 0)
         {
             // Check if the newly read byte is the same as the last byte read
@@ -114,16 +114,16 @@ void HLW8032::SerialReadLoop()
             processData();
         }
 
-        for (int i = 0; i < 24; i++)
-        {
-            printf("%X ", SerialTemps[i]);
-        }
-        printf("\n");
+        // for (int i = 0; i < 24; i++)
+        // {
+        //     printf("%X ", SerialTemps[i]);
+        // }
+        // printf("\n");
     }
 }
 bool HLW8032::Checksum()
 {
-    return true;
+    // return true;
     uint8_t check = 0;
     for (int i = 2; i <= 22; i++)
     {
@@ -160,6 +160,9 @@ void HLW8032::processData()
     float power = GetActivePower(); // voltage * current;
     float energy = static_cast<float>(EnergyData) * Ke;
 
+    if(!((voltage>150)&(voltage<300)&(current>0.2)&(current<20))){
+        return;
+    }
     // Get the current time
     auto now = std::chrono::system_clock::now();
     auto now_time_t = std::chrono::system_clock::to_time_t(now);
