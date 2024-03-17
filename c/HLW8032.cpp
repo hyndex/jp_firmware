@@ -120,6 +120,8 @@ void HLW8032::processData() {
         meterFile << json.str() << std::endl;
         meterFile.flush(); // Ensure the data is written to the file
     }
+    printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Energy: %.2f Wh\n", rxPin ,voltage, current, power);
+
 }
 
 HLW8032::~HLW8032() {
