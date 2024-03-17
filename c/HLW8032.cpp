@@ -61,7 +61,8 @@ unsigned char HLW8032::ReadByte()
     unsigned char buf[1];
     while (true)
     {
-        time_sleep(0.0008); // Adjust the sleep time as needed
+                    // 0.002933
+        time_sleep(0.002933); // Adjust the sleep time as needed
         if (gpioSerialRead(rxPin, buf, 1) > 0)
         {
             // Check if the newly read byte is the same as the last byte read
