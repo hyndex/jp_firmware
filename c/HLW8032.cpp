@@ -72,6 +72,12 @@ void HLW8032::SerialReadLoop()
         SerialTemps[i] = ReadByte() & 0xFF;
     }
 
+    for (int i = 0; i <= 24; i++)
+    {
+        printf("%X ",SerialTemps[i]);
+    }
+    printf("\n");
+
     if (Checksum())
     {
         processData();
