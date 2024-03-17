@@ -83,20 +83,15 @@ void HLW8032::processData() {
     PowerPar = (SerialTemps[14] << 16) | (SerialTemps[15] << 8) | SerialTemps[16];
     PF = (SerialTemps[21] << 8) | SerialTemps[22];
 
-    VolData = (SerialTemps[20] & 0x40) ? (SerialTemps[5] << 16) | (SerialTemps[6] << 8) | SerialTemps[7] : 1;
-    CurrentData = (SerialTemps[20] & 0x20) ? (SerialTemps[11] << 16) | (SerialTemps[12] << 8) | SerialTemps[13] : 1;
-    PowerData = (SerialTemps[20] & 0x10) ? (SerialTemps[17] << 16) | (SerialTemps[18] << 8) | SerialTemps[19] : 1;
+    VolData = (SerialTemps[20] & 0x40) ? (SerialTemps[5] << 16) | (SerialTemps[6] << 8) | SerialTemps[7] : 0;
+    CurrentData = (SerialTemps[20] & 0x20) ? (SerialTemps[11] << 16) | (SerialTemps[12] << 8) | SerialTemps[13] : 0;
+    PowerData = (SerialTemps[20] & 0x10) ? (SerialTemps[17] << 16) | (SerialTemps[18] << 8) | SerialTemps[19] : 0;
     if (SerialTemps[20] & 0x80) PFData++;
 
-    // Apply scaling factors
-    float voltage = VolData != 0 ? ((static_cast<float>(VolPar) / VolData) * VF) / 1000.0 : 0;
-    float current = CurrentData != 0 ? ((static_cast<float>(CurrentPar) / CurrentData) * CF) / 10000.0 : 0; // Adjusted scaling factor for current
-    float power = (PowerData != 0) ? ((static_cast<float>(PowerPar) / PowerData) * VF * CF) / 1000000.0 : 0; // Adjusted scaling factor for power
-    float powerFactor = (voltage * current != 0) ? power / (voltage * current) : 0;
-    float energy = (PFData * power) / 1000.0; // Assuming PFData represents energy in some form
-
-    // Format and print the output
-    printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Power Factor: %.2f, Energy: %.2f Wh\n", rxPin, voltage, current, power, powerFactor, energy);
+    float voltage = VolData != 0 ? (static_cast<float>(VolPar) / VolData) * VF : 0;
+    float current = CurrentData != 0 ? (static_cast<float>(CurrentPar) / CurrentData) * CF : 0;
+    float power = (PowerData != 0) ? (static_cast<float>(PowerPar) / PowerData) * VF * CF : 0;
+    float powerFactor = power / (voltage * current);
 
     // Get the current time
     auto now = std::chrono::system_clock::now();
@@ -116,8 +111,7 @@ void HLW8032::processData() {
     json << "\"voltage\": " << voltage << ", ";
     json << "\"current\": " << current << ", ";
     json << "\"power\": " << power << ", ";
-    json << "\"powerFactor\": " << powerFactor << ", ";
-    json << "\"energy\": " << energy;
+    json << "\"powerFactor\": " << powerFactor;
     json << "}";
 
     // Write the JSON string to the file, replacing old content
@@ -126,6 +120,8 @@ void HLW8032::processData() {
         meterFile << json.str() << std::endl;
         meterFile.flush(); // Ensure the data is written to the file
     }
+    printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Power Factor: %.2f, Energy: %.2f Wh\n", rxPin, voltage, current, power, powerFactor);
+
 }
 
 HLW8032::~HLW8032() {
