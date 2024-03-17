@@ -32,7 +32,7 @@ private:
     uint32_t VolPar, CurrentPar, PowerPar, CurrentData, VolData, PowerData, EnergyData;
     uint16_t PF;
     uint32_t PFData;
-    float VF, CF, Kv, Ki, Kp, Ke;
+    float VF, CF; // Added VF and CF
     int validcount;
     std::ofstream meterFile; // Add this line
 };
