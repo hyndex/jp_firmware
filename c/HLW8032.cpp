@@ -156,7 +156,7 @@ void HLW8032::processData()
     if (meterFile.is_open()) {
         meterFile << json.str() << std::endl;
     }    
-    // printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Energy: %.2f Wh\n", rxPin ,voltage, current, power, energy);
+    printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Energy: %.2f Wh\n", rxPin ,voltage, current, power, energy);
 }
 
 float HLW8032::GetVol()
