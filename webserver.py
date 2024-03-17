@@ -1,9 +1,36 @@
 from flask import Flask, request, render_template
 import json
 import subprocess
-
+import os
 
 app = Flask(__name__)
+
+def update_hostapd_config(ssid, password):
+    config_lines = [
+        "interface=wlan0",
+        f"ssid={ssid}",
+        "hw_mode=g",
+        "channel=7",
+        "wmm_enabled=0",
+        "macaddr_acl=0",
+        "auth_algs=1",
+        "ignore_broadcast_ssid=0",
+        "wpa=2",
+        f"wpa_passphrase={password}",
+        "wpa_key_mgmt=WPA-PSK",
+        "wpa_pairwise=TKIP",
+        "rsn_pairwise=CCMP"
+    ]
+    with open('/etc/hostapd/hostapd.conf', 'w') as f:
+        f.write('\n'.join(config_lines))
+
+def update_dnsmasq_config():
+    config_lines = [
+        "interface=wlan0",
+        "dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h"
+    ]
+    with open('/etc/dnsmasq.conf', 'w') as f:
+        f.write('\n'.join(config_lines))
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -16,7 +43,6 @@ def index():
         hotspot_name = request.form.get('hotspot_name')
         hotspot_password = request.form.get('hotspot_password')
 
-        # Update the charger configuration
         charger_config = {
             'server_url': server_url,
             'charger_id': charger_id,
@@ -25,11 +51,9 @@ def index():
             'hotspot_password': hotspot_password
         }
 
-        # Save the charger configuration to a JSON file
         with open('./charger.json', 'w') as f:
             json.dump(charger_config, f)
 
-        # Update WiFi configuration
         wifi_status = ''
         if wifi_ssid and wifi_password:
             try:
@@ -38,16 +62,19 @@ def index():
             except subprocess.CalledProcessError:
                 wifi_status = 'Failed to connect to WiFi. Please check your credentials.'
 
-        # Update hotspot configuration
         hotspot_status = ''
         if hotspot_enable:
-            # Add commands to turn on the hotspot and configure it with the provided name and password
-            # This is just a placeholder and needs to be replaced with actual commands for your system
-            hotspot_status = 'Hotspot turned on successfully!'
+            try:
+                update_hostapd_config(hotspot_name, hotspot_password)
+                update_dnsmasq_config()
+                subprocess.run(['sudo', 'systemctl', 'restart', 'hostapd'], check=True)
+                subprocess.run(['sudo', 'systemctl', 'restart', 'dnsmasq'], check=True)
+                hotspot_status = 'Hotspot started successfully!'
+            except subprocess.CalledProcessError:
+                hotspot_status = 'Failed to start hotspot. Please check your settings.'
 
         return f'{wifi_status} {hotspot_status} Configuration updated successfully!'
     return render_template('index.html')
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
