@@ -10,15 +10,17 @@
 
 // #include "json.hpp" // or <nlohmann/json.hpp> depending on your setup
 
-
-HLW8032::HLW8032(int rxPin) : rxPin(rxPin), serialOpen(false), validcount(0) {
+HLW8032::HLW8032(int rxPin) : rxPin(rxPin), serialOpen(false), validcount(0)
+{
     // Open a file in /dev/shm for writing meter readings
     std::string filename = "/dev/shm/" + std::to_string(rxPin) + "_meter.txt";
     meterFile.open(filename, std::ios::out);
 }
 
-void HLW8032::begin() {
-    if (gpioSerialReadOpen(rxPin, 4800, 8)) {
+void HLW8032::begin()
+{
+    if (gpioSerialReadOpen(rxPin, 4800, 8))
+    {
         fprintf(stderr, "Failed to open GPIO for serial reading\n");
         return;
     }
@@ -36,21 +38,46 @@ void HLW8032::begin() {
     Kp = 1.0; // Power coefficient (may need adjustment based on circuit design)
 }
 
+// unsigned char HLW8032::ReadByte()
+// {
+//     unsigned char buf[1];
+//     while (true)
+//     {
+//         // time_sleep(0.002933);
+//         // time_sleep(1 / 4800);
+//         time_sleep(0001);
+//         if (gpioSerialRead(rxPin, buf, 1))
+//         {
+//             return buf[0];
+//         }
+//     }
+// }
+
+// Global variable to store the last byte read
+unsigned char lastByteRead = 0;
 
 unsigned char HLW8032::ReadByte()
 {
     unsigned char buf[1];
     while (true)
     {
-        // time_sleep(0.002933);
-        // time_sleep(1 / 4800);
-        time_sleep(0001);
+        time_sleep(0.0001); // Adjust the sleep time as needed
         if (gpioSerialRead(rxPin, buf, 1))
         {
-            return buf[0];
+            // Check if the newly read byte is the same as the last byte read
+            if (buf[0] == lastByteRead)
+            {
+                continue; // Skip this byte and read again
+            }
+            else
+            {
+                lastByteRead = buf[0]; // Update the last byte read
+                return buf[0];
+            }
         }
     }
 }
+
 
 void HLW8032::SerialReadLoop()
 {
@@ -60,7 +87,7 @@ void HLW8032::SerialReadLoop()
     }
 
     std::vector<unsigned char> lastFrame;
-    
+
     while (true)
     {
         unsigned char firstByte = ReadByte();
@@ -81,17 +108,16 @@ void HLW8032::SerialReadLoop()
             currentFrame.push_back(ReadByte() & 0xFF);
         }
 
-        // Check for duplicate frame
-        if (currentFrame != lastFrame)
+        if (Checksum())
         {
-            lastFrame = currentFrame;
-            std::copy(currentFrame.begin(), currentFrame.end(), SerialTemps);
-
-            if (Checksum())
-            {
-                processData();
-            }
+            processData();
         }
+
+        for (int i = 0; i < 24; i++)
+        {
+            printf("%X ", SerialTemps[i]);
+        }
+        printf("\n");
     }
 }
 
@@ -123,7 +149,8 @@ void HLW8032::processData()
     VolData = (SerialTemps[20] & 0x40) ? (SerialTemps[5] << 16) | (SerialTemps[6] << 8) | SerialTemps[7] : 0;
     CurrentData = (SerialTemps[20] & 0x20) ? (SerialTemps[11] << 16) | (SerialTemps[12] << 8) | SerialTemps[13] : 0;
     PowerData = (SerialTemps[20] & 0x10) ? (SerialTemps[17] << 16) | (SerialTemps[18] << 8) | SerialTemps[19] : 0;
-    if (SerialTemps[20] & 0x80) PFData++;
+    if (SerialTemps[20] & 0x80)
+        PFData++;
 
     EnergyData = (SerialTemps[22] << 8) | SerialTemps[23];
 
@@ -154,14 +181,14 @@ void HLW8032::processData()
     json << "}";
 
     // Write the JSON string to the file, replacing old content
-    if (meterFile.is_open()) {
+    if (meterFile.is_open())
+    {
         meterFile.seekp(0); // Move the file pointer to the beginning
         meterFile << json.str() << std::endl;
         meterFile.flush(); // Ensure the data is written to the file
     }
-    printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Energy: %.2f Wh\n", rxPin ,voltage, current, power, energy);
+    printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Energy: %.2f Wh\n", rxPin, voltage, current, power, energy);
 }
-
 
 float HLW8032::GetVol()
 {
@@ -222,13 +249,16 @@ float HLW8032::GetKWh()
     return GetPFAll() / PFcnt;
 }
 
-HLW8032::~HLW8032() {
-    if (serialOpen) {
+HLW8032::~HLW8032()
+{
+    if (serialOpen)
+    {
         gpioSerialReadClose(rxPin);
     }
     gpioTerminate();
     // Close the file
-    if (meterFile.is_open()) {
+    if (meterFile.is_open())
+    {
         meterFile.close();
     }
 }
