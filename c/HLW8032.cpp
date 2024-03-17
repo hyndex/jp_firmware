@@ -54,7 +54,7 @@ void HLW8032::begin()
 // }
 
 // Global variable to store the last byte read
-unsigned char lastByteRead = 0;
+unsigned char lastByteRead = 0xFF; // Initialize with a value unlikely to be the first byte read
 
 unsigned char HLW8032::ReadByte()
 {
@@ -62,7 +62,7 @@ unsigned char HLW8032::ReadByte()
     while (true)
     {
         time_sleep(0.0001); // Adjust the sleep time as needed
-        if (gpioSerialRead(rxPin, buf, 1))
+        if (gpioSerialRead(rxPin, buf, 1) > 0)
         {
             // Check if the newly read byte is the same as the last byte read
             if (buf[0] == lastByteRead)
@@ -78,7 +78,6 @@ unsigned char HLW8032::ReadByte()
     }
 }
 
-
 void HLW8032::SerialReadLoop()
 {
     if (!serialOpen)
@@ -86,14 +85,13 @@ void HLW8032::SerialReadLoop()
         return;
     }
 
-    std::vector<unsigned char> lastFrame;
-
     while (true)
     {
         unsigned char firstByte = ReadByte();
         unsigned char secondByte = ReadByte();
 
-        while (secondByte != 0x5A && firstByte != 0x55)
+        // Ensure the frame starts with 0x55 followed by 0x5A
+        while (!(firstByte == 0x55 && secondByte == 0x5A))
         {
             firstByte = secondByte;
             secondByte = ReadByte();
@@ -108,21 +106,20 @@ void HLW8032::SerialReadLoop()
             currentFrame.push_back(ReadByte() & 0xFF);
         }
 
-        for (int i = 0; i < 24; i++)
-        {
-            printf("%X ", SerialTemps[i]);
-        }
-        printf("\n");
-        
+        std::copy(currentFrame.begin(), currentFrame.end(), SerialTemps);
+
         if (Checksum())
         {
             processData();
         }
 
-
+        for (int i = 0; i < 24; i++)
+        {
+            printf("%X ", SerialTemps[i]);
+        }
+        printf("\n");
     }
 }
-
 bool HLW8032::Checksum()
 {
     uint8_t check = 0;
