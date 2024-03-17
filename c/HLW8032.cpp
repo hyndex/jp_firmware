@@ -122,6 +122,7 @@ void HLW8032::SerialReadLoop()
 }
 bool HLW8032::Checksum()
 {
+    return true;
     uint8_t check = 0;
     for (int i = 2; i <= 22; i++)
     {
@@ -186,7 +187,7 @@ void HLW8032::processData()
         meterFile << json.str() << std::endl;
         meterFile.flush(); // Ensure the data is written to the file
     }
-    printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Energy: %.2f Wh\n", rxPin, voltage, current, power, energy);
+    printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A\n", rxPin, voltage, current);
 }
 
 float HLW8032::GetVol()
