@@ -7,7 +7,7 @@ void readMeter(HLW8032& meter) {
     meter.begin();
     while (true) {
         meter.SerialReadLoop();
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        // std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 }
 
@@ -18,13 +18,13 @@ int main() {
     }
     HLW8032 meter2(12);
     HLW8032 meter3(21);
-    // HLW8032 meter1(25);
+    HLW8032 meter1(25);
 
     std::thread thread3(readMeter, std::ref(meter3));
     std::thread thread2(readMeter, std::ref(meter2));
-    // std::thread thread1(readMeter, std::ref(meter1));
+    std::thread thread1(readMeter, std::ref(meter1));
 
-    // thread1.join();
+    thread1.join();
     thread2.join();
     thread3.join();
 
