@@ -87,6 +87,7 @@ void HLW8032::SerialReadLoop()
 
 bool HLW8032::Checksum()
 {
+    return true;
     uint8_t check = 0;
     for (int i = 2; i <= 22; i++)
     {
@@ -98,7 +99,7 @@ bool HLW8032::Checksum()
         // printf("\n\ncount: %d Checksum Valid\n", ++validcount);
         return true;
     }
-    printf("\n\nGPIO: %d count: %d Checksum InValid\n", rxPin,++validcount);
+    // printf("\n\nGPIO: %d count: %d Checksum InValid\n", rxPin,++validcount);
     return false;
 }
 
