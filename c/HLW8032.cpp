@@ -127,8 +127,6 @@ void HLW8032::processData()
     float voltage = VolData != 0 ? (static_cast<float>(VolPar) * Kv) / (VolData * 1000) : 0;
     float current = CurrentData != 0 ? (static_cast<float>(CurrentPar) * Ki) / (CurrentData * 1000) : 0;
     float power = voltage * current;
-
-
     float energy = static_cast<float>(EnergyData) * Ke;
 
     // Get the current time
@@ -152,12 +150,15 @@ void HLW8032::processData()
     json << "\"energy\": " << energy;
     json << "}";
 
-    // Write the JSON string to the file
+    // Write the JSON string to the file, replacing old content
     if (meterFile.is_open()) {
+        meterFile.seekp(0); // Move the file pointer to the beginning
         meterFile << json.str() << std::endl;
-    }    
+        meterFile.flush(); // Ensure the data is written to the file
+    }
     printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Energy: %.2f Wh\n", rxPin ,voltage, current, power, energy);
 }
+
 
 float HLW8032::GetVol()
 {
