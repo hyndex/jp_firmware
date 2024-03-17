@@ -123,7 +123,7 @@ void HLW8032::SerialReadLoop()
 }
 bool HLW8032::Checksum()
 {
-    return true;
+    // return true;
     uint8_t check = 0;
     for (int i = 2; i <= 22; i++)
     {
@@ -160,9 +160,9 @@ void HLW8032::processData()
     float power = GetActivePower(); // voltage * current;
     float energy = static_cast<float>(EnergyData) * Ke;
 
-    if(!((voltage>150)&(voltage<300)&(current>0.4)&(current<20))){
-        return;
-    }
+    // if(!((voltage>150)&(voltage<300)&(current>0.4)&(current<20))){
+    //     return;
+    // }
     // Get the current time
     auto now = std::chrono::system_clock::now();
     auto now_time_t = std::chrono::system_clock::to_time_t(now);
