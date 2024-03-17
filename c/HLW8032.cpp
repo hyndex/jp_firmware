@@ -112,7 +112,7 @@ void HLW8032::processData()
 
     float voltage = VolData != 0 ? (static_cast<float>(VolPar) * Kv) / (VolData * 1000) : 0;
     float current = CurrentData != 0 ? (static_cast<float>(CurrentPar) * Ki) / (CurrentData * 1000) : 0;
-    float power = voltage * current;
+    float power = GetActivePower(); // voltage * current;
     float energy = static_cast<float>(EnergyData) * Ke;
 
     // Get the current time
