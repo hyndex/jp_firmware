@@ -30,7 +30,7 @@ void HLW8032::begin()
 
     // Set the voltage and current coefficients based on your resistor values
     VF = 1881.0; // Voltage coefficient based on your voltage divider resistors
-    CF = 10.0;   // Current coefficient based on your shunt resistor (0.1Ω)
+    CF = 1000.0; // Current coefficient based on your shunt resistor (1 milliohm)
 }
 
 unsigned char HLW8032::ReadByte()
@@ -99,16 +99,16 @@ void HLW8032::processData()
     PowerPar = (SerialTemps[14] << 16) | (SerialTemps[15] << 8) | SerialTemps[16];
     PF = (SerialTemps[21] << 8) | SerialTemps[22];
 
-    VolData = (SerialTemps[20] & 0x40) ? (SerialTemps[5] << 16) | (SerialTemps[6] << 8) | SerialTemps[7] : 0;
-    CurrentData = (SerialTemps[20] & 0x20) ? (SerialTemps[11] << 16) | (SerialTemps[12] << 8) | SerialTemps[13] : 0;
-    PowerData = (SerialTemps[20] & 0x10) ? (SerialTemps[17] << 16) | (SerialTemps[18] << 8) | SerialTemps[19] : 0;
-    if (SerialTemps[20] & 0x80)
-        PFData++;
+    VolData = (SerialTemps[20] & 0x40) ? (SerialTemps[5] << 16) | (SerialTemps[6] << 8) | SerialTemps[7] : 1; // Avoid division by zero
+    CurrentData = (SerialTemps[20] & 0x20) ? (SerialTemps[11] << 16) | (SerialTemps[12] << 8) | SerialTemps[13] : 1; // Avoid division by zero
+    PowerData = (SerialTemps[20] & 0x10) ? (SerialTemps[17] << 16) | (SerialTemps[18] << 8) | SerialTemps[19] : 1; // Avoid division by zero
+    if (SerialTemps[20] & 0x80) PFData++;
 
-    float voltage = VolData != 0 ? (static_cast<float>(VolPar) / (VolData * 1000)) * VF : 0;
-    float current = CurrentData != 0 ? (static_cast<float>(CurrentPar) / (CurrentData * 10)) * CF : 0;
-    float power = (PowerData != 0) ? (static_cast<float>(PowerPar) / (PowerData*10000)) * VF * CF : 0;
-    float powerFactor = power / (voltage * current);
+    float voltage = ((static_cast<float>(VolPar) / VolData) * VF) / 1000.0; // Voltage in volts
+    float current = ((static_cast<float>(CurrentPar) / CurrentData) * CF) / 1000.0; // Current in amps
+    float power = ((static_cast<float>(PowerPar) / PowerData) * VF * CF) / 1000.0; // Power in watts
+
+    float powerFactor = (voltage * current > 0) ? power / (voltage * current) : 0;
 
     // Get the current time
     auto now = std::chrono::system_clock::now();
@@ -138,6 +138,7 @@ void HLW8032::processData()
         meterFile << json.str() << std::endl;
         meterFile.flush(); // Ensure the data is written to the file
     }
+    printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Power Factor: %.2f\n", rxPin, voltage, current, power, powerFactor);
 }
 
 HLW8032::~HLW8032()
