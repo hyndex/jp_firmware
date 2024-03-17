@@ -83,17 +83,17 @@ void HLW8032::processData() {
     PowerPar = (SerialTemps[14] << 16) | (SerialTemps[15] << 8) | SerialTemps[16];
     PF = (SerialTemps[21] << 8) | SerialTemps[22];
 
-    VolData = (SerialTemps[20] & 0x40) ? (SerialTemps[5] << 16) | (SerialTemps[6] << 8) | SerialTemps[7] : 0;
-    CurrentData = (SerialTemps[20] & 0x20) ? (SerialTemps[11] << 16) | (SerialTemps[12] << 8) | SerialTemps[13] : 0;
-    PowerData = (SerialTemps[20] & 0x10) ? (SerialTemps[17] << 16) | (SerialTemps[18] << 8) | SerialTemps[19] : 0;
+    VolData = (SerialTemps[20] & 0x40) ? (SerialTemps[5] << 16) | (SerialTemps[6] << 8) | SerialTemps[7] : 1; // Avoid division by zero
+    CurrentData = (SerialTemps[20] & 0x20) ? (SerialTemps[11] << 16) | (SerialTemps[12] << 8) | SerialTemps[13] : 1; // Avoid division by zero
+    PowerData = (SerialTemps[20] & 0x10) ? (SerialTemps[17] << 16) | (SerialTemps[18] << 8) | SerialTemps[19] : 1; // Avoid division by zero
     if (SerialTemps[20] & 0x80) PFData++;
 
     // Apply scaling factors
-    float voltage = VolData != 0 ? ((static_cast<float>(VolPar) / VolData) * VF) / 1000.0 : 0;
-    float current = CurrentData != 0 ? ((static_cast<float>(CurrentPar) / CurrentData) * CF) / 1000.0 : 0;
-    float power = (PowerData != 0) ? ((static_cast<float>(PowerPar) / PowerData) * VF * CF) / 1000.0 : 0;
+    float voltage = ((static_cast<float>(VolPar) / VolData) * VF) / 1000.0; // Voltage in volts
+    float current = ((static_cast<float>(CurrentPar) / CurrentData) * CF) / 1000.0; // Current in amps
+    float power = ((static_cast<float>(PowerPar) / PowerData) * VF * CF) / 1000.0; // Power in watts
 
-    float powerFactor = power / (voltage * current);
+    float powerFactor = (voltage * current > 0) ? power / (voltage * current) : 0;
 
     // Get the current time
     auto now = std::chrono::system_clock::now();
@@ -123,7 +123,6 @@ void HLW8032::processData() {
         meterFile.flush(); // Ensure the data is written to the file
     }
     printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Power Factor: %.2f\n", rxPin, voltage, current, power, powerFactor);
-
 }
 
 HLW8032::~HLW8032() {
