@@ -57,27 +57,34 @@ void HLW8032::SerialReadLoop()
 
     unsigned char firstByte = ReadByte();
     unsigned char secondByte = ReadByte();
+    unsigned char markedByte;
 
-    while (secondByte != 0x5A && firstByte != 0x55)
+    while (true)
     {
         firstByte = secondByte;
         secondByte = ReadByte();
+        if (secondByte == 0x5A && firstByte == 0x55)
+        {
+            // Read up to the marked byte position
+            for (int i = 2; i < 22; i++)
+            {
+                SerialTemps[i] = ReadByte() & 0xFF;
+            }
+            // Read the marked byte
+            markedByte = ReadByte() & 0xFF;
+            if (markedByte == 0x71)
+            {
+                // If the marked byte is correct, read the remaining bytes
+                SerialTemps[22] = ReadByte() & 0xFF;
+                SerialTemps[23] = ReadByte() & 0xFF;
+                break;
+            }
+        }
     }
 
     SerialTemps[0] = firstByte;
     SerialTemps[1] = secondByte;
-
-    for (int i = 2; i < 24; i++)
-    {
-        SerialTemps[i] = ReadByte() & 0xFF;
-    }
-
-    for (int i = 0; i <= 24; i++)
-    {
-        printf("%X ",SerialTemps[i]);
-    }
-    printf("\n");
-
+    
     if (Checksum())
     {
         processData();
