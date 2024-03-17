@@ -79,10 +79,10 @@ void HLW8032::SerialReadLoop()
         SerialTemps[i] = ReadByte() & 0xFF;
     }
 
-    // if (Checksum())
-    // {
-    //     processData();
-    // }
+    if (Checksum())
+    {
+        processData();
+    }
 }
 
 bool HLW8032::Checksum()
@@ -98,7 +98,6 @@ bool HLW8032::Checksum()
         // printf("\n\ncount: %d Checksum Valid\n", ++validcount);
         return true;
     }
-    printf("\n\nRXPIN: %d , count: %d Checksum InValid\n", rxPin, ++validcount);
     return false;
 }
 
