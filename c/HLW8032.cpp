@@ -113,11 +113,11 @@ void HLW8032::SerialReadLoop()
             processData();
         }
 
-        // for (int i = 0; i < 24; i++)
-        // {
-        //     printf("%X ", SerialTemps[i]);
-        // }
-        // printf("\n");
+        for (int i = 0; i < 24; i++)
+        {
+            printf("%X ", SerialTemps[i]);
+        }
+        printf("\n");
     }
 }
 bool HLW8032::Checksum()
