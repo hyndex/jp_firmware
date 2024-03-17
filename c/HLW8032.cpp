@@ -5,92 +5,59 @@
 #include <iomanip>
 #include <sstream>
 
-HLW8032::HLW8032(int rxPin) : rxPin(rxPin), serialOpen(false)
-{
-    // Open a file in /dev/shm for writing meter readings
+HLW8032::HLW8032(int rxPin) : rxPin(rxPin), serialOpen(false) {
     std::string filename = "/dev/shm/" + std::to_string(rxPin) + "_meter.txt";
     meterFile.open(filename, std::ios::out);
 }
 
-void HLW8032::begin()
-{
-    if (!gpioInitialise())
-    {
-        fprintf(stderr, "Failed to initialize pigpio\n");
-        return;
-    }
-
-    if (gpioSerialReadOpen(rxPin, 4800, 8))
-    {
+void HLW8032::begin() {
+    if (gpioSerialReadOpen(rxPin, 4800, 8)) {
         fprintf(stderr, "Failed to open GPIO for serial reading\n");
         return;
     }
-
     serialOpen = true;
-
-    // Set the voltage and current coefficients based on your resistor values
-    VF = 1881.0; // Voltage coefficient based on your voltage divider resistors
-    CF = 1000.0; // Current coefficient based on your shunt resistor (1 milliohm)
+    VF = 1881.0;
+    CF = 1000.0;
 }
 
-unsigned char HLW8032::ReadByte()
-{
-    unsigned char buf[1];
-    while (true)
-    {
-        time_sleep(0.002933);
-        if (gpioSerialRead(rxPin, buf, 1))
-        {
-            return buf[0];
+void HLW8032::ReadBytes(std::vector<unsigned char>& buffer, int count) {
+    buffer.resize(count);
+    int bytesRead = 0;
+    while (bytesRead < count) {
+        int result = gpioSerialRead(rxPin, buffer.data() + bytesRead, count - bytesRead);
+        if (result > 0) {
+            bytesRead += result;
         }
     }
 }
 
-void HLW8032::SerialReadLoop()
-{
-    if (!serialOpen)
-    {
+void HLW8032::SerialReadLoop() {
+    if (!serialOpen) {
         return;
     }
 
-    unsigned char firstByte = ReadByte();
-    unsigned char secondByte = ReadByte();
+    std::vector<unsigned char> buffer;
+    ReadBytes(buffer, 24); // Read 24 bytes at once
 
-    while (secondByte != 0x5A)
-    {
-        firstByte = secondByte;
-        secondByte = ReadByte();
+    for (int i = 0; i < 24; ++i) {
+        SerialTemps[i] = buffer[i];
     }
 
-    SerialTemps[0] = firstByte;
-    SerialTemps[1] = secondByte;
-
-    for (int i = 2; i < 24; i++)
-    {
-        SerialTemps[i] = ReadByte() & 0xFF;
-    }
-
-    if (Checksum())
-    {
+    if (Checksum()) {
         processData();
     }
 }
 
-bool HLW8032::Checksum()
-{
+bool HLW8032::Checksum() {
     uint8_t check = 0;
-    for (int i = 2; i <= 22; i++)
-    {
+    for (int i = 2; i <= 22; i++) {
         check += SerialTemps[i];
     }
-
     return check == SerialTemps[23];
 }
 
-void HLW8032::processData()
-{
-    if (!Checksum())
-    {
+void HLW8032::processData() {
+    if (!Checksum()) {
         return;
     }
 
@@ -132,25 +99,21 @@ void HLW8032::processData()
     json << "}";
 
     // Write the JSON string to the file, replacing old content
-    if (meterFile.is_open())
-    {
+    if (meterFile.is_open()) {
         meterFile.seekp(0); // Move the file pointer to the beginning
         meterFile << json.str() << std::endl;
         meterFile.flush(); // Ensure the data is written to the file
     }
+
     printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Power Factor: %.2f\n", rxPin, voltage, current, power, powerFactor);
 }
 
-HLW8032::~HLW8032()
-{
-    if (serialOpen)
-    {
+
+HLW8032::~HLW8032() {
+    if (serialOpen) {
         gpioSerialReadClose(rxPin);
     }
-    gpioTerminate();
-    // Close the file
-    if (meterFile.is_open())
-    {
+    if (meterFile.is_open()) {
         meterFile.close();
     }
 }

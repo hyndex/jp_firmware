@@ -3,16 +3,17 @@
 
 #include <cstdint>
 #include <fstream>
+#include <vector>
 
 class HLW8032 {
 public:
     HLW8032(int rxPin);
     void begin();
-    unsigned char ReadByte();
     void SerialReadLoop();
     ~HLW8032();
 
 private:
+    void ReadBytes(std::vector<unsigned char>& buffer, int count);
     bool Checksum();
     void processData();
 
