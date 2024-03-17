@@ -108,16 +108,18 @@ void HLW8032::SerialReadLoop()
             currentFrame.push_back(ReadByte() & 0xFF);
         }
 
-        if (Checksum())
-        {
-            processData();
-        }
-
         for (int i = 0; i < 24; i++)
         {
             printf("%X ", SerialTemps[i]);
         }
         printf("\n");
+        
+        if (Checksum())
+        {
+            processData();
+        }
+
+
     }
 }
 
