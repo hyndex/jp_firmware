@@ -1,11 +1,13 @@
+#include <vector> // Add this line
 #include "HLW8032.h"
 #include <pigpio.h>
 #include <cstdio>
 #include <cstdint>
 #include <cmath>
-#include <fstream> // Include for file I/O
+#include <fstream>
 #include <chrono>
 #include <iomanip>
+
 // #include "json.hpp" // or <nlohmann/json.hpp> depending on your setup
 
 
@@ -40,7 +42,9 @@ unsigned char HLW8032::ReadByte()
     unsigned char buf[1];
     while (true)
     {
-        time_sleep(0.002933);
+        // time_sleep(0.002933);
+        // time_sleep(1 / 4800);
+        time_sleep(0001);
         if (gpioSerialRead(rxPin, buf, 1))
         {
             return buf[0];
@@ -55,39 +59,39 @@ void HLW8032::SerialReadLoop()
         return;
     }
 
-    unsigned char firstByte = ReadByte();
-    unsigned char secondByte = ReadByte();
-    unsigned char markedByte;
-
+    std::vector<unsigned char> lastFrame;
+    
     while (true)
     {
-        firstByte = secondByte;
-        secondByte = ReadByte();
-        if (secondByte == 0x5A && firstByte == 0x55)
+        unsigned char firstByte = ReadByte();
+        unsigned char secondByte = ReadByte();
+
+        while (secondByte != 0x5A && firstByte != 0x55)
         {
-            // Read up to the marked byte position
-            for (int i = 2; i < 22; i++)
+            firstByte = secondByte;
+            secondByte = ReadByte();
+        }
+
+        std::vector<unsigned char> currentFrame;
+        currentFrame.push_back(firstByte);
+        currentFrame.push_back(secondByte);
+
+        for (int i = 2; i < 24; i++)
+        {
+            currentFrame.push_back(ReadByte() & 0xFF);
+        }
+
+        // Check for duplicate frame
+        if (currentFrame != lastFrame)
+        {
+            lastFrame = currentFrame;
+            std::copy(currentFrame.begin(), currentFrame.end(), SerialTemps);
+
+            if (Checksum())
             {
-                SerialTemps[i] = ReadByte() & 0xFF;
-            }
-            // Read the marked byte
-            markedByte = ReadByte() & 0xFF;
-            if (markedByte == 0x71)
-            {
-                // If the marked byte is correct, read the remaining bytes
-                SerialTemps[22] = ReadByte() & 0xFF;
-                SerialTemps[23] = ReadByte() & 0xFF;
-                break;
+                processData();
             }
         }
-    }
-
-    SerialTemps[0] = firstByte;
-    SerialTemps[1] = secondByte;
-    
-    if (Checksum())
-    {
-        processData();
     }
 }
 
