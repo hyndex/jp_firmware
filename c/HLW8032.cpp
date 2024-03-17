@@ -5,19 +5,23 @@
 #include <iomanip>
 #include <sstream>
 
-HLW8032::HLW8032(int rxPin) : rxPin(rxPin), serialOpen(false) {
+HLW8032::HLW8032(int rxPin) : rxPin(rxPin), serialOpen(false)
+{
     // Open a file in /dev/shm for writing meter readings
     std::string filename = "/dev/shm/" + std::to_string(rxPin) + "_meter.txt";
     meterFile.open(filename, std::ios::out);
 }
 
-void HLW8032::begin() {
-    if (!gpioInitialise()) {
+void HLW8032::begin()
+{
+    if (!gpioInitialise())
+    {
         fprintf(stderr, "Failed to initialize pigpio\n");
         return;
     }
 
-    if (gpioSerialReadOpen(rxPin, 4800, 8)) {
+    if (gpioSerialReadOpen(rxPin, 4800, 8))
+    {
         fprintf(stderr, "Failed to open GPIO for serial reading\n");
         return;
     }
@@ -29,25 +33,31 @@ void HLW8032::begin() {
     CF = 10.0;   // Current coefficient based on your shunt resistor (0.1Ω)
 }
 
-unsigned char HLW8032::ReadByte() {
+unsigned char HLW8032::ReadByte()
+{
     unsigned char buf[1];
-    while (true) {
+    while (true)
+    {
         time_sleep(0.002933);
-        if (gpioSerialRead(rxPin, buf, 1)) {
+        if (gpioSerialRead(rxPin, buf, 1))
+        {
             return buf[0];
         }
     }
 }
 
-void HLW8032::SerialReadLoop() {
-    if (!serialOpen) {
+void HLW8032::SerialReadLoop()
+{
+    if (!serialOpen)
+    {
         return;
     }
 
     unsigned char firstByte = ReadByte();
     unsigned char secondByte = ReadByte();
 
-    while (secondByte != 0x5A) {
+    while (secondByte != 0x5A)
+    {
         firstByte = secondByte;
         secondByte = ReadByte();
     }
@@ -55,26 +65,32 @@ void HLW8032::SerialReadLoop() {
     SerialTemps[0] = firstByte;
     SerialTemps[1] = secondByte;
 
-    for (int i = 2; i < 24; i++) {
+    for (int i = 2; i < 24; i++)
+    {
         SerialTemps[i] = ReadByte() & 0xFF;
     }
 
-    if (Checksum()) {
+    if (Checksum())
+    {
         processData();
     }
 }
 
-bool HLW8032::Checksum() {
+bool HLW8032::Checksum()
+{
     uint8_t check = 0;
-    for (int i = 2; i <= 22; i++) {
+    for (int i = 2; i <= 22; i++)
+    {
         check += SerialTemps[i];
     }
 
     return check == SerialTemps[23];
 }
 
-void HLW8032::processData() {
-    if (!Checksum()) {
+void HLW8032::processData()
+{
+    if (!Checksum())
+    {
         return;
     }
 
@@ -83,17 +99,16 @@ void HLW8032::processData() {
     PowerPar = (SerialTemps[14] << 16) | (SerialTemps[15] << 8) | SerialTemps[16];
     PF = (SerialTemps[21] << 8) | SerialTemps[22];
 
-    VolData = (SerialTemps[20] & 0x40) ? (SerialTemps[5] << 16) | (SerialTemps[6] << 8) | SerialTemps[7] : 1; // Avoid division by zero
-    CurrentData = (SerialTemps[20] & 0x20) ? (SerialTemps[11] << 16) | (SerialTemps[12] << 8) | SerialTemps[13] : 1; // Avoid division by zero
-    PowerData = (SerialTemps[20] & 0x10) ? (SerialTemps[17] << 16) | (SerialTemps[18] << 8) | SerialTemps[19] : 1; // Avoid division by zero
-    if (SerialTemps[20] & 0x80) PFData++;
+    VolData = (SerialTemps[20] & 0x40) ? (SerialTemps[5] << 16) | (SerialTemps[6] << 8) | SerialTemps[7] : 0;
+    CurrentData = (SerialTemps[20] & 0x20) ? (SerialTemps[11] << 16) | (SerialTemps[12] << 8) | SerialTemps[13] : 0;
+    PowerData = (SerialTemps[20] & 0x10) ? (SerialTemps[17] << 16) | (SerialTemps[18] << 8) | SerialTemps[19] : 0;
+    if (SerialTemps[20] & 0x80)
+        PFData++;
 
-    // Apply scaling factors
-    float voltage = ((static_cast<float>(VolPar) / VolData) * VF) / 1000.0; // Voltage in volts
-    float current = ((static_cast<float>(CurrentPar) / CurrentData) * CF) / 1000.0; // Current in amps
-    float power = ((static_cast<float>(PowerPar) / PowerData) * VF * CF) / 1000.0; // Power in watts
-
-    float powerFactor = (voltage * current > 0) ? power / (voltage * current) : 0;
+    float voltage = VolData != 0 ? (static_cast<float>(VolPar) / (VolData * 1000)) * VF : 0;
+    float current = CurrentData != 0 ? (static_cast<float>(CurrentPar) / (CurrentData * 10)) * CF : 0;
+    float power = (PowerData != 0) ? (static_cast<float>(PowerPar) / PowerData) * VF * CF : 0;
+    float powerFactor = power / (voltage * current);
 
     // Get the current time
     auto now = std::chrono::system_clock::now();
@@ -117,21 +132,24 @@ void HLW8032::processData() {
     json << "}";
 
     // Write the JSON string to the file, replacing old content
-    if (meterFile.is_open()) {
+    if (meterFile.is_open())
+    {
         meterFile.seekp(0); // Move the file pointer to the beginning
         meterFile << json.str() << std::endl;
         meterFile.flush(); // Ensure the data is written to the file
     }
-    printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Power Factor: %.2f\n", rxPin, voltage, current, power, powerFactor);
 }
 
-HLW8032::~HLW8032() {
-    if (serialOpen) {
+HLW8032::~HLW8032()
+{
+    if (serialOpen)
+    {
         gpioSerialReadClose(rxPin);
     }
     gpioTerminate();
     // Close the file
-    if (meterFile.is_open()) {
+    if (meterFile.is_open())
+    {
         meterFile.close();
     }
 }
