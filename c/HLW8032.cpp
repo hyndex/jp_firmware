@@ -58,7 +58,7 @@ void HLW8032::SerialReadLoop()
     unsigned char firstByte = ReadByte();
     unsigned char secondByte = ReadByte();
 
-    while (secondByte != 0x5A)
+    while (secondByte != 0x5A && firstByte != 0x55)
     {
         firstByte = secondByte;
         secondByte = ReadByte();
