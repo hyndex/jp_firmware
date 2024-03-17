@@ -15,16 +15,8 @@ HLW8032::HLW8032(int rxPin) : rxPin(rxPin), serialOpen(false), validcount(0) {
     meterFile.open(filename, std::ios::out);
 }
 
-void HLW8032::begin()
-{
-    if (!gpioInitialise())
-    {
-        fprintf(stderr, "Failed to initialize pigpio\n");
-        return;
-    }
-
-    if (gpioSerialReadOpen(rxPin, 4800, 8))
-    {
+void HLW8032::begin() {
+    if (gpioSerialReadOpen(rxPin, 4800, 8)) {
         fprintf(stderr, "Failed to open GPIO for serial reading\n");
         return;
     }
@@ -41,6 +33,7 @@ void HLW8032::begin()
 
     Kp = 1.0; // Power coefficient (may need adjustment based on circuit design)
 }
+
 
 unsigned char HLW8032::ReadByte()
 {

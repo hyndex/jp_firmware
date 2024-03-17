@@ -17,17 +17,14 @@ int main() {
         return -1;
     }
 
-    // Create instances for each meter connected to different GPIO pins
-    HLW8032 meter1(25); // GPIO pin 21 for meter 1
-    HLW8032 meter2(12); // GPIO pin 12 for meter 2
-    HLW8032 meter3(21); // GPIO pin 21 for meter 3
+    HLW8032 meter1(25);
+    HLW8032 meter2(12);
+    HLW8032 meter3(21);
 
-    // Start separate threads for each meter to read and process data simultaneously
     std::thread thread1(readMeter, std::ref(meter1));
     std::thread thread2(readMeter, std::ref(meter2));
     std::thread thread3(readMeter, std::ref(meter3));
 
-    // Join the threads (wait for them to complete)
     thread1.join();
     thread2.join();
     thread3.join();
