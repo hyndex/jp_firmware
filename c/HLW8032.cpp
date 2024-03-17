@@ -1,72 +1,53 @@
 #include "HLW8032.h"
 #include <pigpio.h>
 #include <cstdio>
-#include <cstdint>
-#include <cmath>
-#include <fstream> // Include for file I/O
 #include <chrono>
 #include <iomanip>
-// #include "json.hpp" // or <nlohmann/json.hpp> depending on your setup
+#include <sstream>
 
-
-HLW8032::HLW8032(int rxPin) : rxPin(rxPin), serialOpen(false), validcount(0) {
+HLW8032::HLW8032(int rxPin) : rxPin(rxPin), serialOpen(false) {
     // Open a file in /dev/shm for writing meter readings
     std::string filename = "/dev/shm/" + std::to_string(rxPin) + "_meter.txt";
     meterFile.open(filename, std::ios::out);
 }
 
-void HLW8032::begin()
-{
-    if (!gpioInitialise())
-    {
+void HLW8032::begin() {
+    if (!gpioInitialise()) {
         fprintf(stderr, "Failed to initialize pigpio\n");
         return;
     }
 
-    if (gpioSerialReadOpen(rxPin, 4800, 8))
-    {
+    if (gpioSerialReadOpen(rxPin, 4800, 8)) {
         fprintf(stderr, "Failed to open GPIO for serial reading\n");
         return;
     }
 
     serialOpen = true;
 
-    // Calculate the voltage and current factors based on the provided values
-    float Rt = (4 * 470000) + 1000; // Total resistance in the voltage divider circuit (4 * 470kΩ + 1kΩ)
-    float Rv = 1000;                // Resistance of the resistor connected to the voltage input pin (VP)
-    Kv = Rt / Rv;                   // Voltage coefficient
-
-    float Rs = 0.001; // Resistance of the shunt resistor (1mΩ)
-    Ki = 1 / Rs;      // Current coefficient
-
-    Kp = 1.0; // Power coefficient (may need adjustment based on circuit design)
+    // Set the voltage and current coefficients based on your resistor values
+    VF = 1881.0; // Voltage coefficient based on your voltage divider resistors
+    CF = 10.0;   // Current coefficient based on your shunt resistor (0.1Ω)
 }
 
-unsigned char HLW8032::ReadByte()
-{
+unsigned char HLW8032::ReadByte() {
     unsigned char buf[1];
-    while (true)
-    {
+    while (true) {
         time_sleep(0.002933);
-        if (gpioSerialRead(rxPin, buf, 1))
-        {
+        if (gpioSerialRead(rxPin, buf, 1)) {
             return buf[0];
         }
     }
 }
 
-void HLW8032::SerialReadLoop()
-{
-    if (!serialOpen)
-    {
+void HLW8032::SerialReadLoop() {
+    if (!serialOpen) {
         return;
     }
 
     unsigned char firstByte = ReadByte();
     unsigned char secondByte = ReadByte();
 
-    while (secondByte != 0x5A)
-    {
+    while (secondByte != 0x5A) {
         firstByte = secondByte;
         secondByte = ReadByte();
     }
@@ -74,41 +55,26 @@ void HLW8032::SerialReadLoop()
     SerialTemps[0] = firstByte;
     SerialTemps[1] = secondByte;
 
-    for (int i = 2; i < 24; i++)
-    {
+    for (int i = 2; i < 24; i++) {
         SerialTemps[i] = ReadByte() & 0xFF;
     }
 
-    if (Checksum())
-    {
-        // for (int i = 0; i < 24; i++)
-        // {
-        //     printf("%02X, ", SerialTemps[i]);
-        // }
+    if (Checksum()) {
         processData();
     }
 }
 
-bool HLW8032::Checksum()
-{
+bool HLW8032::Checksum() {
     uint8_t check = 0;
-    for (int i = 2; i <= 22; i++)
-    {
+    for (int i = 2; i <= 22; i++) {
         check += SerialTemps[i];
     }
 
-    if (check == SerialTemps[23])
-    {
-        // printf("\n\ncount: %d Checksum Valid\n", ++validcount);
-        return true;
-    }
-    return false;
+    return check == SerialTemps[23];
 }
 
-void HLW8032::processData()
-{
-    if (!Checksum())
-    {
+void HLW8032::processData() {
+    if (!Checksum()) {
         return;
     }
 
@@ -122,12 +88,10 @@ void HLW8032::processData()
     PowerData = (SerialTemps[20] & 0x10) ? (SerialTemps[17] << 16) | (SerialTemps[18] << 8) | SerialTemps[19] : 0;
     if (SerialTemps[20] & 0x80) PFData++;
 
-    EnergyData = (SerialTemps[22] << 8) | SerialTemps[23];
-
-    float voltage = VolData != 0 ? (static_cast<float>(VolPar) * Kv) / (VolData * 1000) : 0;
-    float current = CurrentData != 0 ? (static_cast<float>(CurrentPar) * Ki) / (CurrentData * 1000) : 0;
-    float power = voltage * current;
-    float energy = static_cast<float>(EnergyData) * Ke;
+    float voltage = VolData != 0 ? (static_cast<float>(VolPar) / VolData) * VF : 0;
+    float current = CurrentData != 0 ? (static_cast<float>(CurrentPar) / CurrentData) * CF : 0;
+    float power = (PowerData != 0) ? (static_cast<float>(PowerPar) / PowerData) * VF * CF : 0;
+    float powerFactor = power / (voltage * current);
 
     // Get the current time
     auto now = std::chrono::system_clock::now();
@@ -147,7 +111,7 @@ void HLW8032::processData()
     json << "\"voltage\": " << voltage << ", ";
     json << "\"current\": " << current << ", ";
     json << "\"power\": " << power << ", ";
-    json << "\"energy\": " << energy;
+    json << "\"powerFactor\": " << powerFactor;
     json << "}";
 
     // Write the JSON string to the file, replacing old content
@@ -156,67 +120,6 @@ void HLW8032::processData()
         meterFile << json.str() << std::endl;
         meterFile.flush(); // Ensure the data is written to the file
     }
-    printf("GPIO: %d, Voltage: %.2f V, Current: %.2f A, Power: %.2f W, Energy: %.2f Wh\n", rxPin ,voltage, current, power, energy);
-}
-
-
-float HLW8032::GetVol()
-{
-    return static_cast<float>(VolPar) / VolData * VF;
-}
-
-float HLW8032::GetEnergy()
-{
-    return static_cast<float>(EnergyData) * Ke;
-}
-
-float HLW8032::GetVolAnalog()
-{
-    return static_cast<float>(VolPar) / VolData;
-}
-
-float HLW8032::GetCurrent()
-{
-    return (static_cast<float>(PowerPar) / PowerData) * VF * CF;
-}
-
-float HLW8032::GetInspectingPower()
-{
-    return GetVol() * GetCurrent();
-}
-
-float HLW8032::GetActivePower()
-{
-    if (SerialTemps[20] & 0x10)
-    {
-        if ((SerialTemps[0] & 0xF2) == 0xF2)
-        {
-            return 0;
-        }
-        return (static_cast<float>(PowerPar) / PowerData) * VF * CF;
-    }
-    return 0;
-}
-
-float HLW8032::GetPowerFactor()
-{
-    return GetActivePower() / GetInspectingPower();
-}
-
-uint16_t HLW8032::GetPF()
-{
-    return PF;
-}
-
-uint32_t HLW8032::GetPFAll()
-{
-    return (PFData * 65536) + PF;
-}
-
-float HLW8032::GetKWh()
-{
-    float PFcnt = (1.0 / PowerPar) * (1.0 / (CF * VF)) * 1e9 * 3600;
-    return GetPFAll() / PFcnt;
 }
 
 HLW8032::~HLW8032() {

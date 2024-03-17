@@ -1,7 +1,8 @@
 #ifndef HLW8032_H
 #define HLW8032_H
+
 #include <cstdint>
-#include <fstream> // Include for file I/O
+#include <fstream>
 
 class HLW8032 {
 public:
@@ -9,17 +10,6 @@ public:
     void begin();
     unsigned char ReadByte();
     void SerialReadLoop();
-    float GetVol();
-    float GetVolAnalog();
-    float GetCurrent();
-    float GetCurrentAnalog();
-    float GetActivePower();
-    float GetInspectingPower();
-    float GetPowerFactor();
-    uint16_t GetPF();
-    uint32_t GetPFAll();
-    float GetKWh();
-    float GetEnergy();
     ~HLW8032();
 
 private:
@@ -29,12 +19,11 @@ private:
     int rxPin;
     bool serialOpen;
     uint8_t SerialTemps[24];
-    uint32_t VolPar, CurrentPar, PowerPar, CurrentData, VolData, PowerData, EnergyData;
+    uint32_t VolPar, CurrentPar, PowerPar, CurrentData, VolData, PowerData;
     uint16_t PF;
     uint32_t PFData;
-    float VF, CF, Kv, Ki, Kp, Ke;
-    int validcount;
-    std::ofstream meterFile; // Add this line
+    float VF, CF;
+    std::ofstream meterFile;
 };
 
 #endif // HLW8032_H
