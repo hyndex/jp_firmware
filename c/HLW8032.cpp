@@ -65,7 +65,7 @@ void HLW8032::SerialReadLoop()
     unsigned char firstByte = ReadByte();
     unsigned char secondByte = ReadByte();
 
-    while (secondByte != 0x5A)
+    while (secondByte != 0x5A && secondByte != 0x55)
     {
         firstByte = secondByte;
         secondByte = ReadByte();
@@ -105,10 +105,6 @@ bool HLW8032::Checksum()
 
 void HLW8032::processData()
 {
-    if (!Checksum())
-    {
-        return;
-    }
 
     VolPar = (SerialTemps[2] << 16) | (SerialTemps[3] << 8) | SerialTemps[4];
     CurrentPar = (SerialTemps[8] << 16) | (SerialTemps[9] << 8) | SerialTemps[10];
