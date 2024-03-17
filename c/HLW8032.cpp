@@ -3,11 +3,10 @@
 #include <cstdio>
 #include <cstdint>
 #include <cmath>
-#include <fstream> // Include for file I/O
+#include <fstream>
 #include <chrono>
 #include <iomanip>
-// #include "json.hpp" // or <nlohmann/json.hpp> depending on your setup
-
+#include <vector>
 
 HLW8032::HLW8032(int rxPin) : rxPin(rxPin), serialOpen(false), validcount(0) {
     // Open a file in /dev/shm for writing meter readings
@@ -24,76 +23,76 @@ void HLW8032::begin() {
     serialOpen = true;
 
     // Calculate the voltage and current factors based on the provided values
-    float Rt = (4 * 470000) + 1000; // Total resistance in the voltage divider circuit (4 * 470kΩ + 1kΩ)
-    float Rv = 1000;                // Resistance of the resistor connected to the voltage input pin (VP)
-    Kv = Rt / Rv;                   // Voltage coefficient
+    float Rt = (4 * 470000) + 1000;
+    float Rv = 1000;
+    Kv = Rt / Rv;
 
-    float Rs = 0.001; // Resistance of the shunt resistor (1mΩ)
-    Ki = 1 / Rs;      // Current coefficient
+    float Rs = 0.001;
+    Ki = 1 / Rs;
 
-    Kp = 1.0; // Power coefficient (may need adjustment based on circuit design)
+    Kp = 1.0;
 }
 
-
-unsigned char HLW8032::ReadByte()
-{
-    unsigned char buf[1];
-    while (true)
-    {
-        time_sleep(0.002933);
-        if (gpioSerialRead(rxPin, buf, 1))
-        {
-            return buf[0];
+void HLW8032::ReadBytes(std::vector<unsigned char>& buffer, int count) {
+    buffer.resize(count);
+    int bytesRead = 0;
+    while (bytesRead < count) {
+        int result = gpioSerialRead(rxPin, buffer.data() + bytesRead, count - bytesRead);
+        if (result > 0) {
+            bytesRead += result;
+        } else {
+            time_sleep(0.001);
         }
     }
 }
 
-void HLW8032::SerialReadLoop()
-{
-    if (!serialOpen)
-    {
+void HLW8032::SerialReadLoop() {
+    if (!serialOpen) {
         return;
     }
 
-    unsigned char firstByte = ReadByte();
-    unsigned char secondByte = ReadByte();
+    std::vector<unsigned char> buffer;
+    unsigned char byte;
+    bool frameFound = false;
 
-    while (secondByte != 0x5A)
-    {
-        firstByte = secondByte;
-        secondByte = ReadByte();
+    // Continuously read bytes until the start of the frame is found
+    while (!frameFound) {
+        if (gpioSerialRead(rxPin, &byte, 1) > 0) {
+            if (byte == 0x55) {
+                // Potential start of frame, check next byte
+                if (gpioSerialRead(rxPin, &byte, 1) > 0 && byte == 0x5A) {
+                    // Start of frame found
+                    buffer.push_back(0x55);
+                    buffer.push_back(0x5A);
+                    frameFound = true;
+                }
+            }
+        } else {
+            time_sleep(0.001); // Adjust sleep duration to match the baud rate
+        }
     }
 
-    SerialTemps[0] = firstByte;
-    SerialTemps[1] = secondByte;
+    // Read the remaining 22 bytes of the frame
+    ReadBytes(buffer, 22);
 
-    for (int i = 2; i < 24; i++)
-    {
-        SerialTemps[i] = ReadByte() & 0xFF;
+    for (int i = 0; i < 24; ++i) {
+        SerialTemps[i] = buffer[i];
     }
 
-    if (Checksum())
-    {
+    if (Checksum()) {
         processData();
     }
 }
 
-bool HLW8032::Checksum()
-{
+bool HLW8032::Checksum() {
     uint8_t check = 0;
-    for (int i = 2; i <= 22; i++)
-    {
+    for (int i = 2; i <= 22; i++) {
         check += SerialTemps[i];
     }
 
-    if (check == SerialTemps[23])
-    {
-        // printf("\n\ncount: %d Checksum Valid\n", ++validcount);
-        return true;
-    }
-    // printf("\n\nGPIO: %d count: %d Checksum InValid\n", rxPin,++validcount);
-    return false;
+    return check == SerialTemps[23];
 }
+
 
 void HLW8032::processData()
 {
@@ -146,62 +145,50 @@ void HLW8032::processData()
 }
 
 
-float HLW8032::GetVol()
-{
-    return static_cast<float>(VolPar) / VolData * VF;
+float HLW8032::GetVol() {
+    return static_cast<float>(VolPar) / VolData * Kv;
 }
 
-float HLW8032::GetEnergy()
-{
+float HLW8032::GetEnergy() {
     return static_cast<float>(EnergyData) * Ke;
 }
 
-float HLW8032::GetVolAnalog()
-{
+float HLW8032::GetVolAnalog() {
     return static_cast<float>(VolPar) / VolData;
 }
 
-float HLW8032::GetCurrent()
-{
-    return (static_cast<float>(PowerPar) / PowerData) * VF * CF;
+float HLW8032::GetCurrent() {
+    return (static_cast<float>(PowerPar) / PowerData) * Kv * Ki;
 }
 
-float HLW8032::GetInspectingPower()
-{
+float HLW8032::GetInspectingPower() {
     return GetVol() * GetCurrent();
 }
 
-float HLW8032::GetActivePower()
-{
-    if (SerialTemps[20] & 0x10)
-    {
-        if ((SerialTemps[0] & 0xF2) == 0xF2)
-        {
+float HLW8032::GetActivePower() {
+    if (SerialTemps[20] & 0x10) {
+        if ((SerialTemps[0] & 0xF2) == 0xF2) {
             return 0;
         }
-        return (static_cast<float>(PowerPar) / PowerData) * VF * CF;
+        return (static_cast<float>(PowerPar) / PowerData) * Kv * Ki;
     }
     return 0;
 }
 
-float HLW8032::GetPowerFactor()
-{
+float HLW8032::GetPowerFactor() {
     return GetActivePower() / GetInspectingPower();
 }
 
-uint16_t HLW8032::GetPF()
-{
+uint16_t HLW8032::GetPF() {
     return PF;
 }
 
-uint32_t HLW8032::GetPFAll()
-{
+uint32_t HLW8032::GetPFAll() {
     return (PFData * 65536) + PF;
 }
 
-float HLW8032::GetKWh()
-{
-    float PFcnt = (1.0 / PowerPar) * (1.0 / (CF * VF)) * 1e9 * 3600;
+float HLW8032::GetKWh() {
+    float PFcnt = (1.0 / PowerPar) * (1.0 / (Ki * Kv)) * 1e9 * 3600;
     return GetPFAll() / PFcnt;
 }
 
