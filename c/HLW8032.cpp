@@ -160,7 +160,7 @@ void HLW8032::processData()
     float power = GetActivePower(); // voltage * current;
     float energy = static_cast<float>(EnergyData) * Ke;
 
-    if(!((voltage>150)&(voltage<300)&(current>0.2)&(current<20))){
+    if(!((voltage>150)&(voltage<300)&(current>0.4)&(current<20))){
         return;
     }
     // Get the current time
