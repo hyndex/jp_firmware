@@ -16,14 +16,13 @@ int main() {
         std::cerr << "Failed to initialize pigpio\n";
         return -1;
     }
-
-    HLW8032 meter1(25);
     HLW8032 meter2(12);
     HLW8032 meter3(21);
+    HLW8032 meter1(25);
 
-    std::thread thread1(readMeter, std::ref(meter1));
-    std::thread thread2(readMeter, std::ref(meter2));
     std::thread thread3(readMeter, std::ref(meter3));
+    std::thread thread2(readMeter, std::ref(meter2));
+    std::thread thread1(readMeter, std::ref(meter1));
 
     thread1.join();
     thread2.join();
