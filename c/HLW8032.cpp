@@ -98,7 +98,7 @@ bool HLW8032::Checksum()
         // printf("\n\ncount: %d Checksum Valid\n", ++validcount);
         return true;
     }
-    printf("\n\ncount: %d Checksum InValid\n", ++validcount);
+    printf("\n\nGPIO: %d count: %d Checksum InValid\n", rxPin,++validcount);
     return false;
 }
 
