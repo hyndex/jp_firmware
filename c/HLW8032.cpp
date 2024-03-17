@@ -123,7 +123,7 @@ void HLW8032::SerialReadLoop()
 }
 bool HLW8032::Checksum()
 {
-    // return true;
+    return true;
     uint8_t check = 0;
     for (int i = 2; i <= 22; i++)
     {
