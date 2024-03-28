@@ -60,7 +60,7 @@ class ChargePoint(cp):
         asyncio.create_task(self.process_function_call_queue())
 
         for connector_id in range(len(self.connector_status)):
-            self.relay_controllers[connector_id].close_relay()
+            self.relay_controllers[connector_id+1].close_relay()
         
 
 
