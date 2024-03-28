@@ -216,7 +216,7 @@ class ChargePoint(cp):
             self.connector_status[connector_id]['status'] = 'Available'
             self.connector_status[connector_id]['error_code'] = 'NoError'
             self.connector_status[connector_id]['notification_sent'] = False
-
+            del self.active_transactions[connector_id]
             await self.function_call_queue.put({
                 "function": asyncio.sleep,
                 "args": [20],
