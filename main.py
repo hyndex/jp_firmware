@@ -396,8 +396,7 @@ class ChargePoint(cp):
                 bytesize=aioserial.EIGHTBITS,
                 timeout=1
             )
-            # Define the sleep interval in seconds
-            sleep_interval = 1  # Change this value as needed
+            sleep_interval = 1
             try:
                 while True:
                     if ser.in_waiting > 0:
@@ -408,7 +407,6 @@ class ChargePoint(cp):
                             self.meter['voltage'] = temp['voltage']
                             self.meter['current'] = temp['current']
                             self.meter['power'] = temp['power']
-                            # Update energy in Wh by adding the power (in W) divided by 3600, scaled by the sleep interval
                             self.meter['energy'] += temp['power'] * sleep_interval / 3600
                             print(self.meter)
                     await asyncio.sleep(sleep_interval)
@@ -419,6 +417,7 @@ class ChargePoint(cp):
                 ser.close()
         except Exception as e:
             print(f"Serial error: {e}")
+
 
 
     def parse_metervalues(self, s):
@@ -434,6 +433,7 @@ class ChargePoint(cp):
                 'voltage': voltage,
                 'current': current,
                 'power': power,
+                'energy':0
             }
         return result
 
