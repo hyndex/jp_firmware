@@ -1,13 +1,8 @@
-import pigpio
+import RPi.GPIO as GPIO
 import sys
 
-# Initialize the pigpio library
-pi = pigpio.pi()
-
-# Check if the pigpio daemon is running
-if not pi.connected:
-    print("pigpio daemon is not running. Please start it with 'sudo pigpiod'.")
-    exit()
+# Set the GPIO numbering mode
+GPIO.setmode(GPIO.BCM)
 
 # Check if the script received the correct number of command-line arguments
 if len(sys.argv) != 3:
@@ -19,17 +14,17 @@ relay_pin = int(sys.argv[1])
 relay_state = sys.argv[2]
 
 # Set the relay pin as an output
-pi.set_mode(relay_pin, pigpio.OUTPUT)
+GPIO.setup(relay_pin, GPIO.OUT)
 
 # Turn the relay on or off based on the command-line argument
 if relay_state == '1':
-    pi.write(relay_pin, 1)
+    GPIO.output(relay_pin, GPIO.HIGH)
     print(f"Relay on GPIO {relay_pin} is turned ON.")
 elif relay_state == '0':
-    pi.write(relay_pin, 0)
+    GPIO.output(relay_pin, GPIO.LOW)
     print(f"Relay on GPIO {relay_pin} is turned OFF.")
 else:
     print("Invalid argument. Please use 0 to turn off the relay or 1 to turn it on.")
 
 # Clean up
-pi.stop()
+GPIO.cleanup()
