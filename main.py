@@ -14,6 +14,7 @@ from ocpp.v16 import call, call_result
 from ocpp.v16.enums import (RegistrationStatus, AuthorizationStatus,
                             ConfigurationStatus, ResetType, ResetStatus,
                             ClearCacheStatus, TriggerMessageStatus, MessageTrigger)
+import pigpio
 
 logging.basicConfig(level=logging.INFO)
 
@@ -429,15 +430,22 @@ class ChargePoint(cp):
             subprocess.run(['python3', current_firmware])
 
 # Class to control a relay
+# Class to control a relay using pigpio
 class RelayController:
     def __init__(self, relay_pin):
         self.relay_pin = relay_pin
+        self.pi = pigpio.pi()
+        if not self.pi.connected:
+            raise RuntimeError("pigpio daemon is not running")
+        self.pi.set_mode(self.relay_pin, pigpio.OUTPUT)
 
     def open_relay(self):
-        print('Charging Started')
+        self.pi.write(self.relay_pin, 1)
+        print(f'Relay on GPIO {self.relay_pin} is turned ON.')
 
     def close_relay(self):
-        print('Charging Stopped')
+        self.pi.write(self.relay_pin, 0)
+        print(f'Relay on GPIO {self.relay_pin} is turned OFF.')
 
 # Main function to run the ChargePoint
 async def main():

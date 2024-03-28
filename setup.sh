@@ -5,6 +5,15 @@ echo "Installing Node.js and npm..."
 curl -sL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
+# Install pigpio
+echo "Installing pigpio..."
+sudo apt-get install -y pigpio python3-pigpio
+
+# Start the pigpio daemon
+echo "Starting the pigpio daemon..."
+sudo systemctl start pigpiod
+sudo systemctl enable pigpiod
+
 # Clone the repository
 echo "Cloning the repository..."
 git clone git@github.com:hyndex/jp_firmware.git
