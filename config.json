@@ -1,5 +1,5 @@
 {
-    "HeartbeatInterval": 30,
+    "HeartbeatInterval": "30",
     "MeterValueSampleInterval": 30,
     "NumberOfConnectors": 2,
     "BootNotificationRetryInterval": 10,

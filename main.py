@@ -6,6 +6,11 @@ import os
 from ocpp.routing import on
 from ocpp.v16.enums import Action
 import requests
+import time
+import re
+import aioserial
+import asyncio
+import re
 
 try:
     import websockets
@@ -74,6 +79,62 @@ class ChargePoint(cp):
     ## Non OCPP Functions
     ###########
 
+
+    async def read_serial_data(self):
+        # Configure the serial connection
+        try:
+            ser = aioserial.AioSerial(
+                port='/dev/serial0',  # Change this to the correct port
+                baudrate=9600,        # Match the baudrate with the Arduino code
+                parity=aioserial.PARITY_NONE,
+                stopbits=aioserial.STOPBITS_ONE,
+                bytesize=aioserial.EIGHTBITS,
+                timeout=1
+            )
+
+            try:
+                while True:
+                    if ser.in_waiting > 0:
+                        line = await ser.readline_async()
+                        line = line.decode('utf-8').strip()
+                        if line:
+                            self.meter = self.parse_metervalues(line)
+                            print(self.meter)
+                    await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                print("Serial reading cancelled.")
+            finally:
+                await asyncio.sleep(1)
+                await ser.close_async()
+        except :
+            print("Serial error.")
+    def parse_metervalues(self, s):
+        # Split the string using a regular expression
+        parts = re.split(r',(?=M)', s)
+
+        result = {}
+
+        for part in parts:
+            # Split each part by comma
+            values = part.split(',')
+
+            # Extract the key and values
+            key = values[0]
+            voltage = float(values[1])
+            current = float(values[2])
+            power = float(values[3])
+            energy = float(values[4])
+
+            # Add to the result dictionary
+            result[key] = {
+                'voltage': voltage,
+                'current': current,
+                'power': power,
+                'energy': energy
+            }
+
+        return result
+
     # Handle disconnection and attempt to reconnect
     async def handle_disconnect(self):
         logging.warning("Disconnected from the central system. Attempting to reconnect...")
@@ -111,6 +172,7 @@ class ChargePoint(cp):
 
     # Reset charger data to initial values
     def reset_data(self):
+        self.meter = {}
         self.config_file = "config.json"
         self.load_config()
         self.start_time = datetime.utcnow()
@@ -578,7 +640,7 @@ async def main():
         cp_instance = ChargePoint("jyotisman120", ws)
         cp_instance.reset_data()
         await asyncio.gather(cp_instance.start(), cp_instance.send_boot_notification(), cp_instance.heartbeat(),
-                             cp_instance.send_periodic_meter_values(), cp_instance.send_status_notifications_loop())
+                             cp_instance.send_periodic_meter_values(), cp_instance.send_status_notifications_loop(), cp_instance.read_serial_data())
 
 if __name__ == "__main__":
     asyncio.run(main())
