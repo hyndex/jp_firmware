@@ -360,7 +360,8 @@ class ChargePoint(cp):
         return call_result.RemoteStopTransactionPayload(status='Rejected')
 
     def get_meter_value(self, connector_id):
-        return self.meter.get(connector_id, {'voltage': 0, 'current': 0, 'power': 0})
+        return self.meter.get(connector_id, {'voltage': 0, 'current': 0, 'power': 0, 'energy': 0})
+
 
     async def read_serial_data(self):
         try:
