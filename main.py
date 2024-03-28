@@ -573,9 +573,9 @@ class ChargePoint(cp):
 # Main function to run the ChargePoint
 async def main():
     async with websockets.connect(
-            "wss://9223-ionnest-ocppserver-9t47xwcd6ef.ws-us110.gitpod.io/jyotisman120", subprotocols=["ocpp1.6j"]
+            "ws://ocpp-test.joulepoint.com:80/jyotisman120", subprotocols=["ocpp1.6j"]
     ) as ws:
-        cp_instance = ChargePoint("joulepoint781", ws)
+        cp_instance = ChargePoint("jyotisman120", ws)
         cp_instance.reset_data()
         await asyncio.gather(cp_instance.start(), cp_instance.send_boot_notification(), cp_instance.heartbeat(),
                              cp_instance.send_periodic_meter_values(), cp_instance.send_status_notifications_loop())

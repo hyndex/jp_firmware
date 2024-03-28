@@ -1,1 +1,16 @@
-{"HeartbeatInterval": "30", "MeterValueSampleInterval": 30, "NumberOfConnectors": 2, "BootNotificationRetryInterval": 10, "MaxBootNotificationRetries": 5, "Model": "BharatAC", "Vendor": "Chinmoy"}
+{
+    "HeartbeatInterval": 30,
+    "MeterValueSampleInterval": 30,
+    "NumberOfConnectors": 2,
+    "BootNotificationRetryInterval": 10,
+    "MaxBootNotificationRetries": 5,
+    "Model": "BharatAC",
+    "Vendor": "Chinmoy",
+    "ChargePointSerialNumber": "CP-12345",
+    "FirmwareVersion": "1.0.0",
+    "ConnectionTimeout": 120,
+    "MeterValuesAlignedData": ["Energy.Active.Import.Register", "Voltage"],
+    "MeterValuesSampledData": ["Energy.Active.Import.Register", "Current.Import"],
+    "TransactionMessageAttempts": 3,
+    "TransactionMessageRetryInterval": 5
+}
