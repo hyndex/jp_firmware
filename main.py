@@ -243,11 +243,6 @@ class ChargePoint(cp):
         while True:
             for connector_id, transaction in self.active_transactions.items():
                 meter_value = self.get_meter_value(connector_id)
-                # Calculate energy since the last reading
-                time_interval = int(self.config.get("MeterValueSampleInterval", 60)) / 3600  # Convert seconds to hours
-                energy_increment = meter_value['power'] * time_interval  # Power (kW) * Time (h) = Energy (kWh)
-                meter_value['energy'] += energy_increment  # Update the energy reading
-
                 energy_sampled_value = {
                     "value": str(meter_value['energy']),
                     "context": "Sample.Periodic",
@@ -259,14 +254,20 @@ class ChargePoint(cp):
                 voltage_sampled_value = {
                     "value": str(meter_value['voltage']),
                     "format": "Raw",
-                    "measurand": "Energy.Active.Import.Register",
+                    "measurand": "Voltage",
                     "unit": "V"
                 }
                 current_sampled_value = {
                     "value": str(meter_value['current']),
                     "format": "Raw",
-                    "measurand": "Current",
+                    "measurand": "Current.Import",
                     "unit": "A"
+                }
+                power_sampled_value = {
+                    "value": str(meter_value['power']),
+                    "format": "Raw",
+                    "measurand": "Power.Active.Import",  # Added power measurand
+                    "unit": "W"  # Unit for power is Watts (W)
                 }
                 request = call.MeterValuesPayload(
                     connector_id=connector_id,
@@ -280,6 +281,9 @@ class ChargePoint(cp):
                     }, {
                         "timestamp": datetime.utcnow().isoformat(),
                         "sampled_value": [current_sampled_value]
+                    }, {
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "sampled_value": [power_sampled_value]  # Added power sampled value
                     }]
                 )
                 response = await self.call(request)
