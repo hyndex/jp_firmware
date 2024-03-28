@@ -258,14 +258,14 @@ class ChargePoint(cp):
                 }
                 voltage_sampled_value = {
                     "value": str(meter_value['voltage']),
-                    "format": "Voltage",
+                    "format": "Raw",
                     "measurand": "Energy.Active.Import.Register",
                     "unit": "V"
                 }
                 current_sampled_value = {
                     "value": str(meter_value['current']),
                     "format": "Raw",
-                    "measurand": "CUrrent",
+                    "measurand": "Current",
                     "unit": "A"
                 }
                 request = call.MeterValuesPayload(
