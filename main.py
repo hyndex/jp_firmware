@@ -380,7 +380,11 @@ class ChargePoint(cp):
                         line = await ser.readline_async()
                         line = line.decode('utf-8').strip()
                         if line:
-                            self.meter = self.parse_metervalues(line)
+                            temp = self.parse_metervalues(line)
+                            self.meter['voltage'] = temp['voltage']
+                            self.meter['current'] = temp['current']
+                            self.meter['power'] = temp['power']
+                            self.meter['energy'] = self.meter['energy']
                             print(self.meter)
                     await asyncio.sleep(1)
             except asyncio.CancelledError:
