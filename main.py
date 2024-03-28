@@ -157,7 +157,6 @@ class ChargePoint(cp):
 
     async def start_transaction(self, connector_id, id_tag):
         if connector_id not in self.active_transactions:
-            self.meter[connector_id]['energy'] = 0
             meter_start = self.get_meter_value(connector_id)
             authorize_response = await self.authorize(id_tag)
             if not authorize_response:
@@ -209,8 +208,6 @@ class ChargePoint(cp):
                 )
                 await self.call(stop_transaction_request, suppress=True)
                 self.relay_controllers[connector_id].close_relay()
-                if connector_id in self.meter:
-                    del self.meter[connector_id]['energy']  # Remove energy field when stopping a transaction
                 logging.info(f"Transaction {transaction_id} stopped on connector {connector_id}")
             except Exception as e:
                 logging.error(f"Error occurred while stopping transaction: {e}")
@@ -399,6 +396,8 @@ class ChargePoint(cp):
                 bytesize=aioserial.EIGHTBITS,
                 timeout=1
             )
+            # Define the sleep interval in seconds
+            sleep_interval = 1  # Change this value as needed
             try:
                 while True:
                     if ser.in_waiting > 0:
@@ -409,16 +408,18 @@ class ChargePoint(cp):
                             self.meter['voltage'] = temp['voltage']
                             self.meter['current'] = temp['current']
                             self.meter['power'] = temp['power']
-                            self.meter['energy'] = self.meter['energy']
+                            # Update energy in Wh by adding the power (in W) divided by 3600, scaled by the sleep interval
+                            self.meter['energy'] += temp['power'] * sleep_interval / 3600
                             print(self.meter)
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(sleep_interval)
             except asyncio.CancelledError:
                 print("Serial reading cancelled.")
             finally:
-                await asyncio.sleep(1)
-                await ser.close_async()
+                await asyncio.sleep(sleep_interval)
+                ser.close()
         except Exception as e:
             print(f"Serial error: {e}")
+
 
     def parse_metervalues(self, s):
         parts = re.split(r',(?=M)', s)
