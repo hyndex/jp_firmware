@@ -22,6 +22,26 @@ logging.basicConfig(level=logging.INFO)
 def get_relay_pins():
     return {1: 25, 2: 24, 3: 23}
 
+
+# Class to control a relay
+# Class to control a relay using pigpio
+class RelayController:
+    def __init__(self, relay_pin):
+        self.relay_pin = relay_pin
+        self.pi = pigpio.pi()
+        if not self.pi.connected:
+            raise RuntimeError("pigpio daemon is not running")
+        self.pi.set_mode(self.relay_pin, pigpio.OUTPUT)
+
+    def open_relay(self):
+        self.pi.write(self.relay_pin, 1)
+        print(f'Relay on GPIO {self.relay_pin} is turned ON.')
+
+    def close_relay(self):
+        self.pi.write(self.relay_pin, 0)
+        print(f'Relay on GPIO {self.relay_pin} is turned OFF.')
+
+
 # ChargePoint class that extends the OCPP ChargePoint class
 class ChargePoint(cp):
     def __init__(self, *args, **kwargs):
@@ -38,6 +58,11 @@ class ChargePoint(cp):
                                  for connector_id in range(1, int(self.config.get("NumberOfConnectors", 2)) + 1)}
         self.function_call_queue = asyncio.Queue()
         asyncio.create_task(self.process_function_call_queue())
+        
+        for connector_id in len(self.connector_status):
+            self.relay_controllers[connector_id].close_relay()
+        
+
 
     def load_config(self):
         try:
@@ -433,23 +458,7 @@ class ChargePoint(cp):
             os.rename(backup_firmware, current_firmware)
             subprocess.run(['python3', current_firmware])
 
-# Class to control a relay
-# Class to control a relay using pigpio
-class RelayController:
-    def __init__(self, relay_pin):
-        self.relay_pin = relay_pin
-        self.pi = pigpio.pi()
-        if not self.pi.connected:
-            raise RuntimeError("pigpio daemon is not running")
-        self.pi.set_mode(self.relay_pin, pigpio.OUTPUT)
 
-    def open_relay(self):
-        self.pi.write(self.relay_pin, 1)
-        print(f'Relay on GPIO {self.relay_pin} is turned ON.')
-
-    def close_relay(self):
-        self.pi.write(self.relay_pin, 0)
-        print(f'Relay on GPIO {self.relay_pin} is turned OFF.')
 
 # Main function to run the ChargePoint
 async def main():
