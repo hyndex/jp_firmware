@@ -35,21 +35,10 @@ logging.basicConfig(level=logging.INFO)
 
 # Function to get relay pins mapping
 def get_relay_pins():
-    return {1: 17, 2: 27}
+    return {1: 25, 2: 24, 3: 23}
 
 # Get initial meter values based on time since the start
 start_time = datetime.now()
-
-def get_meter_value(connector_id):
-    # Calculate the time difference in seconds
-    time_diff = datetime.now() - start_time
-    # Convert time difference to seconds and divide by 10 to get the meter value
-    meter_value = time_diff.total_seconds() / 10
-    return {
-        "power": meter_value,
-        "voltage": 220,
-        "current": 16
-    }
 
 # Class to control a relay
 class RelayController:
@@ -80,6 +69,9 @@ class ChargePoint(cp):
     ###########
 
 
+    def get_meter_value(self, connector_id):
+        return self.meter[connector_id]
+
     async def read_serial_data(self):
         # Configure the serial connection
         try:
@@ -108,6 +100,8 @@ class ChargePoint(cp):
                 await ser.close_async()
         except :
             print("Serial error.")
+    
+    
     def parse_metervalues(self, s):
         # Split the string using a regular expression
         parts = re.split(r',(?=M)', s)
@@ -119,18 +113,17 @@ class ChargePoint(cp):
             values = part.split(',')
 
             # Extract the key and values
-            key = values[0]
+            key = int(values[0].replace('M',''))
             voltage = float(values[1])
             current = float(values[2])
             power = float(values[3])
-            energy = float(values[4])
+            x = float(values[4])
 
             # Add to the result dictionary
             result[key] = {
                 'voltage': voltage,
                 'current': current,
                 'power': power,
-                'energy': energy
             }
 
         return result
@@ -313,7 +306,7 @@ class ChargePoint(cp):
     # Start a charging transaction
     async def start_transaction(self, connector_id, id_tag):
         if connector_id not in self.active_transactions:
-            meter_start = get_meter_value(connector_id)
+            meter_start = self.get_meter_value(connector_id)
 
             authorize_response = await self.authorize(id_tag)
             if not authorize_response:
@@ -323,7 +316,7 @@ class ChargePoint(cp):
             request = call.StartTransactionPayload(
                 connector_id=connector_id,
                 id_tag=id_tag,
-                meter_start=int(meter_start['power']),
+                meter_start=int(meter_start['energy']),
                 timestamp=datetime.utcnow().isoformat()
             )
 
@@ -333,7 +326,7 @@ class ChargePoint(cp):
                 "transaction_id": transaction_id,
                 "connector_id": connector_id,
                 "id_tag": id_tag,
-                "meter_start": int(meter_start['power']),
+                "meter_start": int(meter_start['energy']),
             }
 
             self.active_transactions[connector_id] = transaction
@@ -372,7 +365,7 @@ class ChargePoint(cp):
             transaction = self.active_transactions[connector_id]
             transaction_id = transaction['transaction_id']
             id_tag = transaction['id_tag']
-            meter_stop = int(get_meter_value(connector_id)['power'] * 1000)
+            meter_stop = int(self.get_meter_value(connector_id)['energy'])
 
             authorize_response = await self.authorize(id_tag)
             if not authorize_response:
@@ -439,9 +432,9 @@ class ChargePoint(cp):
     async def send_periodic_meter_values(self):
         while True:
             for connector_id, transaction in self.active_transactions.items():
-                meter_value = get_meter_value(connector_id)
+                meter_value = self.get_meter_value(connector_id)
                 power_sampled_value = {
-                    "value": str(meter_value['power']),
+                    "value": str(meter_value['energy']),
                     "context": "Sample.Periodic",
                     "format": "Raw",
                     "measurand": "Energy.Active.Import.Register",
