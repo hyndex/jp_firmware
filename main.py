@@ -385,41 +385,6 @@ class ChargePoint(cp):
     def get_meter_value(self, connector_id):
         return self.meter.get(connector_id, {'voltage': 0, 'current': 0, 'power': 0, 'energy': 0})
 
-
-    async def read_serial_data(self):
-        try:
-            ser = aioserial.AioSerial(
-                port='/dev/serial0',
-                baudrate=9600,
-                parity=aioserial.PARITY_NONE,
-                stopbits=aioserial.STOPBITS_ONE,
-                bytesize=aioserial.EIGHTBITS,
-                timeout=1
-            )
-            sleep_interval = 1
-            try:
-                while True:
-                    if ser.in_waiting > 0:
-                        line = await ser.readline_async()
-                        line = line.decode('utf-8').strip()
-                        if line:
-                            temp = self.parse_metervalues(line)
-                            self.meter['voltage'] = temp['voltage']
-                            self.meter['current'] = temp['current']
-                            self.meter['power'] = temp['power']
-                            self.meter['energy'] += temp['power'] * sleep_interval / 3600
-                            print(self.meter)
-                    await asyncio.sleep(sleep_interval)
-            except asyncio.CancelledError:
-                print("Serial reading cancelled.")
-            finally:
-                await asyncio.sleep(sleep_interval)
-                ser.close()
-        except Exception as e:
-            print(f"Serial error: {e}")
-
-
-
     def parse_metervalues(self, s):
         parts = re.split(r',(?=M)', s)
         result = {}
@@ -433,10 +398,45 @@ class ChargePoint(cp):
                 'voltage': voltage,
                 'current': current,
                 'power': power,
-                'energy':0
+                'energy': 0  # Initialize energy with 0
             }
         return result
 
+    async def read_serial_data(self):
+        try:
+            ser = aioserial.AioSerial(
+                port='/dev/serial0',
+                baudrate=9600,
+                parity=aioserial.PARITY_NONE,
+                stopbits=aioserial.STOPBITS_ONE,
+                bytesize=aioserial.EIGHTBITS,
+                timeout=1
+            )
+            sleep_interval = 1  # Time interval between readings in seconds
+            try:
+                while True:
+                    if ser.in_waiting > 0:
+                        line = await ser.readline_async()
+                        line = line.decode('utf-8').strip()
+                        if line:
+                            temp = self.parse_metervalues(line)
+                            for key, values in temp.items():
+                                if key in self.meter:
+                                    # Update energy based on power and time interval
+                                    self.meter[key]['energy'] += values['power'] * sleep_interval / 3600
+                                    values['energy'] = self.meter[key]['energy']
+                                self.meter[key] = values
+                            print(self.meter)
+                    await asyncio.sleep(sleep_interval)
+            except asyncio.CancelledError:
+                print("Serial reading cancelled.")
+            finally:
+                await asyncio.sleep(sleep_interval)
+                ser.close()
+        except Exception as e:
+            print(f"Serial error: {e}")
+
+    
     def download_firmware(self, url, destination):
         try:
             response = requests.get(url, timeout=60)
