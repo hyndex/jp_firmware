@@ -1,73 +1,99 @@
-# OCPP 1.6 AC Charger Firmware
+# JP Firmware Project
 
-This repository contains the firmware code for the AC Charger developed by Joulepoint Private Limited. The firmware is designed to manage and control the operations of an AC electric vehicle (EV) charging station.
+This project is designed to run on a Raspberry Pi and interfaces with an OCPP server for electric vehicle charging management. It uses Python and the `ocpp` library to handle OCPP messages and control relays based on charging commands.
 
-## Table of Contents
+## Prerequisites
 
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact](#contact)
+- A Raspberry Pi with Raspberry Pi OS installed
+- Internet connectivity for the Raspberry Pi
+- Access to an OCPP server
 
-## Features
+## Setup Instructions
 
-The AC Charger Firmware includes the following features:
+### 1. Clone the Repository
 
-- **OCPP 1.6 Compliance**: Fully compatible with the Open Charge Point Protocol (OCPP) version 1.6, enabling remote management and monitoring.
-- **Transaction Management**: Handles start and stop transactions efficiently with robust error handling.
-- **Status Monitoring**: Real-time monitoring of connector statuses, including availability and fault conditions.
-- **Remote Operations**: Supports remote start/stop operations, allowing control from a central system.
-- **Metering**: Accurate metering and reporting of energy consumption during charging sessions.
-- **Configuration Management**: Customizable settings to adapt to various operational requirements.
+First, clone the repository to your Raspberry Pi:
 
-## Installation
+```bash
+git clone git@github.com:hyndex/jp_firmware.git
+cd jp_firmware
+```
 
-Instructions for installing the firmware on your AC Charger:
+### 2. Set Up a Virtual Environment
 
-1. Download the latest firmware release from the repository.
-2. Connect to the charger's control unit via ssh.
-3. Upload the firmware .
-4. Follow the on-screen prompts to complete the installation.
+Create a Python virtual environment and activate it:
 
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 3. Install Dependencies
+
+Install the required Python dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Install PM2 (Optional)
+
+PM2 is a process manager that can be used to manage and keep the application running in the background. To install PM2, you first need to install Node.js and npm:
+
+```bash
+curl -sL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+```
+
+Then, install PM2 globally using npm:
+
+```bash
+sudo npm install -g pm2
+```
+
+### 5. Start the Application
+
+You can start the application directly using Python:
+
+```bash
+python main.py
+```
+
+Or, if you installed PM2, you can use it to start the application:
+
+```bash
+pm2 start ./venv/bin/python --name "jp_firmware" -- main.py
+```
+
+If you want the application to start automatically on boot, you can use PM2's startup feature:
+
+```bash
+pm2 startup
+pm2 save
+```
+
+### 6. Configuration
+
+The application uses a `config.json` file for configuration. You can edit this file to change settings such as the OCPP server URL, number of connectors, and more.
 
 ## Usage
 
-To operate the charger after firmware installation:
+Once the application is running, it will connect to the specified OCPP server and handle charging commands. You can monitor the application logs to see the interactions with the OCPP server.
 
-1. Connect the EV to the charger.
-2. Start the charging session via the control panel or remotely through the central system.
+## Stopping the Application
 
-[Provide additional usage instructions or link to a user manual.]
+To stop the application, you can use:
 
-## Configuration
+```bash
+python main.py stop
+```
 
-The firmware can be configured to meet specific requirements. Configuration parameters include:
+Or, if using PM2:
 
-- Maximum Charging Power
-- Network Settings
-- OCPP Configuration
-- Safety Checks
+```bash
+pm2 stop jp_firmware
+```
 
-[Detail how to access and modify these configurations.]
+---
 
-## Troubleshooting
-
-For common issues and troubleshooting steps, refer to the [Troubleshooting Guide](link-to-troubleshooting-guide).
-
-## Contributing
-
-Contributions to the firmware are welcome. Please follow our [Contribution Guidelines](link-to-contribution-guidelines) for more information.
-
-## License
-
-This firmware is owned by Joulepoint Private Limited. All rights reserved.
-
-[Specify the license type, if applicable.]
-
-## Contact
-
-For support or inquiries, contact Joulepoint at [contact information].
+Note: This README assumes that the user has basic knowledge of using a terminal and executing commands on a Raspberry Pi. Adjustments might be needed based on the specific setup and requirements of the user's environment.
