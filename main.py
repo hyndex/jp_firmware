@@ -394,6 +394,12 @@ class ChargePoint(cp):
             voltage = float(values[1])
             current = float(values[2])
             power = float(values[3])
+
+            # Set current and power to 0 if current is less than 0.3
+            if current < 0.3:
+                current = 0
+                power = 0
+
             result[key] = {
                 'voltage': voltage,
                 'current': current,
@@ -401,6 +407,7 @@ class ChargePoint(cp):
                 'energy': 0  # Initialize energy with 0
             }
         return result
+
 
     async def read_serial_data(self):
         try:
