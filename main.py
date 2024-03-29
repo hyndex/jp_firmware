@@ -18,6 +18,7 @@ from ocpp.v16.enums import (RegistrationStatus, AuthorizationStatus,
                             ClearCacheStatus, TriggerMessageStatus, MessageTrigger)
 import pigpio
 import sys
+import os
 logging.basicConfig(level=logging.INFO)
 
 def load_charger_config():
@@ -28,7 +29,21 @@ def load_charger_config():
 def get_relay_pins():
     return {1: 25, 2: 24, 3: 23}
 
-IS_PI=0
+import platform
+
+def is_raspberry_pi():
+    if platform.system() == 'Linux':
+        # Check if '/proc/device-tree/model' contains 'Raspberry Pi'
+        try:
+            with open('/proc/device-tree/model', 'r') as file:
+                model_info = file.read()
+            return 'Raspberry Pi' in model_info
+        except FileNotFoundError:
+            return False
+    return False
+
+# Set IS_PI to 1 if running on a Raspberry Pi, otherwise 0
+IS_PI = 1 if is_raspberry_pi() else 0
 
 # Class to control a relay
 # Class to control a relay using pigpio
