@@ -524,6 +524,7 @@ class ChargePoint(cp):
                         line = await ser.readline_async()
                         line = line.decode('utf-8').strip()
                         if line:
+                            print(line)
                             temp = self.parse_metervalues(line)
                             for key, values in temp.items():
                                 if key in self.meter:
@@ -531,7 +532,7 @@ class ChargePoint(cp):
                                     self.meter[key]['energy'] += values['power'] * sleep_interval / 3600
                                     values['energy'] = self.meter[key]['energy']
                                 self.meter[key] = values
-                            print(self.meter)
+                            # print(self.meter)
                     await asyncio.sleep(sleep_interval)
             except asyncio.CancelledError:
                 print("Serial reading cancelled.")
