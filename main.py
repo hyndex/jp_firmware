@@ -7,6 +7,8 @@ import aioserial
 from ocpp.v16.enums import Action
 import os
 import subprocess
+import threading
+import time
 from datetime import datetime
 from ocpp.routing import on
 from ocpp.v16 import ChargePoint as cp
@@ -15,30 +17,38 @@ from ocpp.v16.enums import (RegistrationStatus, AuthorizationStatus,
                             ConfigurationStatus, ResetType, ResetStatus,
                             ClearCacheStatus, TriggerMessageStatus, MessageTrigger)
 import pigpio
-
+import sys
 logging.basicConfig(level=logging.INFO)
+
+def load_charger_config():
+    with open('charger.json', 'r') as file:
+        return json.load(file)
 
 # Function to get relay pins mapping
 def get_relay_pins():
     return {1: 25, 2: 24, 3: 23}
 
+IS_PI=0
 
 # Class to control a relay
 # Class to control a relay using pigpio
 class RelayController:
     def __init__(self, relay_pin):
         self.relay_pin = relay_pin
-        self.pi = pigpio.pi()
-        if not self.pi.connected:
-            raise RuntimeError("pigpio daemon is not running")
-        self.pi.set_mode(self.relay_pin, pigpio.OUTPUT)
+        if(IS_PI):
+            self.pi = pigpio.pi()
+            if not self.pi.connected:
+                raise RuntimeError("pigpio daemon is not running")
+            self.pi.set_mode(self.relay_pin, pigpio.OUTPUT)
 
     def open_relay(self):
-        self.pi.write(self.relay_pin, 1)
+        if(IS_PI):
+            self.pi.write(self.relay_pin, 1)
         print(f'Relay on GPIO {self.relay_pin} is turned ON.')
 
     def close_relay(self):
-        self.pi.write(self.relay_pin, 0)
+        if(IS_PI):
+            self.pi.write(self.relay_pin, 0)
         print(f'Relay on GPIO {self.relay_pin} is turned OFF.')
 
 
@@ -187,6 +197,7 @@ class ChargePoint(cp):
         else:
             logging.error(f"Connector {connector_id} is already in use")
             return False
+            
 
     async def stop_transaction(self, connector_id):
         if connector_id in self.active_transactions:
@@ -335,29 +346,97 @@ class ChargePoint(cp):
         self.reset_data()
         return call_result.ClearCachePayload(status=ClearCacheStatus.accepted)
 
+
+    @on(Action.Reset)
+    async def handle_reset(self, **kwargs):
+        reset_type = kwargs.get('type')
+
+        # Stop all active transactions
+        for connector_id in list(self.active_transactions.keys()):
+            await self.stop_transaction(connector_id)
+
+        # Set the status of all connectors to "Unavailable" and send StatusNotification
+        for connector_id in self.connector_status:
+            self.connector_status[connector_id]['status'] = 'Unavailable'
+            self.connector_status[connector_id]['notification_sent'] = False
+            asyncio.create_task(self.send_status_notification(connector_id))
+
+        # Wait for 5 seconds to allow some time for status notifications to be sent
+        await asyncio.sleep(5)
+
+        # Prepare the reset response
+        reset_response = call_result.ResetPayload(status=ResetStatus.accepted)
+
+        def delayed_restart():
+            time.sleep(5)  # Delay the restart by 5 seconds
+            if reset_type == ResetType.soft:
+                logging.info("Performing soft reset using PM2...")
+                subprocess.run(['pm2', 'restart', 'all'])
+            elif reset_type == ResetType.hard:
+                logging.info("Performing hard reset...")
+                subprocess.run(['sudo', 'reboot'])
+
+        # Start the delayed restart in a separate thread
+        threading.Thread(target=delayed_restart).start()
+
+        # Return the reset response
+        return reset_response
+
+
     @on(Action.GetConfiguration)
     async def handle_get_configuration(self, **kwargs):
         requested_keys = kwargs.get('key', [])
         configuration = []
+        readonly_parameters = set(self.config.get("ReadOnlyParameters", []))
+
+        if not requested_keys:
+            # If no specific keys are requested, return all configuration entries
+            requested_keys = list(self.config.keys())
+
         for key in requested_keys:
             if key in self.config:
+                value = self.config[key]
+                if isinstance(value, list):
+                    value = ",".join(map(str, value))  # Convert list to comma-separated string
+                else:
+                    value = str(value)  # Convert other types to string
                 configuration.append({
                     "key": key,
-                    "value": self.config[key],
-                    "readonly": True
+                    "value": value,
+                    "readonly": key in readonly_parameters
                 })
+
         return call_result.GetConfigurationPayload(configuration_key=configuration)
+
+
+
 
     @on(Action.ChangeConfiguration)
     async def handle_set_configuration(self, **kwargs):
         key = kwargs.get('key')
         value = kwargs.get('value')
+        readonly_parameters = set(self.config.get("ReadOnlyParameters", []))
+
+        if key in readonly_parameters:
+            # Reject the change if the parameter is read-only
+            return call_result.ChangeConfigurationPayload(status=ConfigurationStatus.rejected)
+
         if key in self.config:
+            # Convert the value to the appropriate type before saving
+            if isinstance(self.config[key], int):
+                try:
+                    value = int(value)
+                except ValueError:
+                    return call_result.ChangeConfigurationPayload(status=ConfigurationStatus.rejected)
+            elif isinstance(self.config[key], list):
+                value = value.split(",")
+            # Update the configuration and save it
             self.config[key] = value
             self.save_config()
             return call_result.ChangeConfigurationPayload(status=ConfigurationStatus.accepted)
         else:
-            return call_result.ChangeConfigurationPayload(status=ConfigurationStatus.rejected)
+            return call_result.ChangeConfigurationPayload(status=ConfigurationStatus.not_supported)
+
 
     @on(Action.RemoteStartTransaction)
     async def on_remote_start_transaction(self, **kwargs):
@@ -474,10 +553,13 @@ class ChargePoint(cp):
 
 # Main function to run the ChargePoint
 async def main():
+    charger_config = load_charger_config()
+    server_url = charger_config['server_url']
+    charger_id = charger_config['charger_id']
     async with websockets.connect(
-            "ws://ocpp-test.joulepoint.com:80/jyotisman120", subprotocols=["ocpp1.6j"]
+            f"{server_url}/{charger_id}", subprotocols=["ocpp1.6j"]
     ) as ws:
-        cp_instance = ChargePoint("jyotisman120", ws)
+        cp_instance = ChargePoint(charger_id, ws)
         await asyncio.gather(cp_instance.start(), cp_instance.send_boot_notification(), cp_instance.heartbeat(),
                              cp_instance.send_periodic_meter_values(), cp_instance.send_status_notifications_loop(), cp_instance.read_serial_data())
 

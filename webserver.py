@@ -1,36 +1,32 @@
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, send_file
 import json
 import subprocess
 import os
 
 app = Flask(__name__)
 
-def update_hostapd_config(ssid, password):
-    config_lines = [
-        "interface=wlan0",
-        f"ssid={ssid}",
-        "hw_mode=g",
-        "channel=7",
-        "wmm_enabled=0",
-        "macaddr_acl=0",
-        "auth_algs=1",
-        "ignore_broadcast_ssid=0",
-        "wpa=2",
-        f"wpa_passphrase={password}",
-        "wpa_key_mgmt=WPA-PSK",
-        "wpa_pairwise=TKIP",
-        "rsn_pairwise=CCMP"
-    ]
-    with open('/etc/hostapd/hostapd.conf', 'w') as f:
-        f.write('\n'.join(config_lines))
+def check_internet_connection():
+    try:
+        subprocess.check_output(['ping', '-c', '1', '8.8.8.8'])
+        return True
+    except subprocess.CalledProcessError:
+        return False
 
-def update_dnsmasq_config():
-    config_lines = [
-        "interface=wlan0",
-        "dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h"
-    ]
-    with open('/etc/dnsmasq.conf', 'w') as f:
-        f.write('\n'.join(config_lines))
+def check_pm2_status():
+    try:
+        subprocess.check_output(['pm2', 'ping'])
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+def create_hotspot():
+    ssid = 'MyHotspot'
+    password = 'mypassword'
+    try:
+        subprocess.check_output(['nmcli', 'device', 'wifi', 'hotspot', 'con-name', ssid, 'ssid', ssid, 'band', 'bg', 'password', password])
+        return True
+    except subprocess.CalledProcessError:
+        return False
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -39,16 +35,10 @@ def index():
         wifi_password = request.form.get('wifi_password')
         server_url = request.form.get('server_url')
         charger_id = request.form.get('charger_id')
-        hotspot_enable = request.form.get('hotspot_enable') == 'on'
-        hotspot_name = request.form.get('hotspot_name')
-        hotspot_password = request.form.get('hotspot_password')
 
         charger_config = {
             'server_url': server_url,
-            'charger_id': charger_id,
-            'hotspot_enable': hotspot_enable,
-            'hotspot_name': hotspot_name,
-            'hotspot_password': hotspot_password
+            'charger_id': charger_id
         }
 
         with open('./charger.json', 'w') as f:
@@ -62,19 +52,23 @@ def index():
             except subprocess.CalledProcessError:
                 wifi_status = 'Failed to connect to WiFi. Please check your credentials.'
 
-        hotspot_status = ''
-        if hotspot_enable:
-            try:
-                update_hostapd_config(hotspot_name, hotspot_password)
-                update_dnsmasq_config()
-                subprocess.run(['sudo', 'systemctl', 'restart', 'hostapd'], check=True)
-                subprocess.run(['sudo', 'systemctl', 'restart', 'dnsmasq'], check=True)
-                hotspot_status = 'Hotspot started successfully!'
-            except subprocess.CalledProcessError:
-                hotspot_status = 'Failed to start hotspot. Please check your settings.'
-
-        return f'{wifi_status} {hotspot_status} Configuration updated successfully!'
+        return f'{wifi_status} Configuration updated successfully!'
     return render_template('index.html')
 
+@app.route('/restart_pm2', methods=['POST'])
+def restart_pm2():
+    try:
+        subprocess.run(['pm2', 'restart', 'all'], check=True)
+        return "PM2 processes restarted successfully!"
+    except subprocess.CalledProcessError:
+        return "Failed to restart PM2 processes."
+
+@app.route('/download_pm2_log', methods=['GET'])
+def download_pm2_log():
+    pm2_log_file = os.path.expanduser('~/.pm2/logs/main-out.log')  # Update this with the correct path to your PM2 log file
+    return send_file(pm2_log_file, as_attachment=True)
+
 if __name__ == '__main__':
+    if not check_internet_connection() or not check_pm2_status():
+        create_hotspot()
     app.run(host='0.0.0.0', port=5000, debug=True)

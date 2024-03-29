@@ -17,15 +17,12 @@
         <input type="text" id="server_url" name="server_url" required><br><br>
         <label for="charger_id">Charger ID:</label><br>
         <input type="text" id="charger_id" name="charger_id" required><br><br>
-        <label for="hotspot_enable">Turn on Hotspot:</label><br>
-        <input type="checkbox" id="hotspot_enable" name="hotspot_enable"><br><br>
-        <label for="hotspot_name">Hotspot Name (SSID):</label><br>
-        <input type="text" id="hotspot_name" name="hotspot_name"><br><br>
-        <label for="hotspot_password">Hotspot Password:</label><br>
-        <input type="password" id="hotspot_password" name="hotspot_password"><br><br>
-
         <input type="submit" value="Submit">
     </form>
+    <form action="/restart_pm2" method="post">
+        <input type="submit" value="Restart PM2 Processes">
+    </form>
+    <a href="/download_pm2_log">Download PM2 Log</a>
 </body>
 
 </html>
