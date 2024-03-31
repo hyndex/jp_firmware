@@ -26,8 +26,11 @@ def load_charger_config():
         return json.load(file)
 
 # Function to get relay pins mapping
+# def get_relay_pins():
+#     return {1: 25, 2: 24, 3: 23}
+    
 def get_relay_pins():
-    return {1: 25, 2: 24, 3: 23}
+    return {1: 6, 2: 24, 3: 23}
 
 import platform
 
