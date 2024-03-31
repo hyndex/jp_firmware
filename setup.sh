@@ -25,6 +25,7 @@ cd jp_firmware
 
 # Set up a virtual environment
 echo "Setting up a virtual environment..."
+sudo apt-get install -y python3-venv
 python3 -m venv venv
 source venv/bin/activate
 
