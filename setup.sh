@@ -50,4 +50,9 @@ eval $pm2_startup_command
 echo "Saving the PM2 process list..."
 pm2 save
 
+# Enable serial interface
+echo "Enabling serial interface..."
+sudo sed -i 's/^#enable_uart=1/enable_uart=1/' /boot/config.txt
+sudo sed -i 's/console=serial0,115200 //' /boot/cmdline.txt
+
 echo "Setup completed successfully!"
