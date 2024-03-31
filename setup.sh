@@ -14,6 +14,10 @@ echo "Starting the pigpio daemon..."
 sudo systemctl start pigpiod
 sudo systemctl enable pigpiod
 
+# Install Git
+echo "Installing Git..."
+sudo apt-get install -y git
+
 # Clone the repository
 echo "Cloning the repository..."
 git clone git@github.com:hyndex/jp_firmware.git
