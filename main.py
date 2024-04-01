@@ -36,7 +36,7 @@ def load_charger_config():
 # pzam
     
 def get_relay_pins():
-    return {1: 27, 2: 22, 3: 10}
+    return {1: 22, 2: 27, 3: 10}
 
 
 import platform
