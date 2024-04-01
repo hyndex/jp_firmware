@@ -29,8 +29,15 @@ def load_charger_config():
 # def get_relay_pins():
 #     return {1: 25, 2: 24, 3: 23}
     
+# def get_relay_pins():
+#     return {1: 6, 2: 24, 3: 23}
+
+
+# pzam
+    
 def get_relay_pins():
-    return {1: 6, 2: 24, 3: 23}
+    return {1: 27, 2: 22, 3: 10}
+
 
 import platform
 
