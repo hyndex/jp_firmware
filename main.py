@@ -246,9 +246,10 @@ class ChargePoint(cp):
             valid_reasons = ['EmergencyStop', 'EVDisconnected', 'HardReset', 'Local', 'Other', 'PowerLoss', 'Reboot', 'Remote', 'SoftReset', 'UnlockCommand', 'DeAuthorized']
             reason = reason if reason in valid_reasons else 'Other'
             stop_transaction_request = call.StopTransactionPayload(meter_stop=meter_stop, timestamp=datetime.now().isoformat(), transaction_id=transaction_id, reason=reason)
+            self.update_transaction_in_csv(transaction_id, meter_stop=meter_stop, is_meter_stop_sent='Yes')
             await self.call(stop_transaction_request, suppress=True)
             self.relay_controllers[connector_id].close_relay()
-            self.update_transaction_in_csv(transaction_id, meter_stop=meter_stop, is_meter_stop_sent='Yes')
+            
             if reason not in ['EmergencyStop', 'PowerLoss']:
                 self.update_connector_status(connector_id, status='Available', error_code='NoError')
             del self.active_transactions[connector_id]
