@@ -9,6 +9,7 @@ import os
 import subprocess
 import threading
 import time
+import csv
 from datetime import datetime
 from ocpp.routing import on
 from ocpp.v16 import ChargePoint as cp
@@ -82,6 +83,39 @@ class ChargePoint(cp):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.reset_data()
+        self.csv_filename = 'charging_sessions.csv'
+        self.initialize_csv()
+
+
+    def initialize_csv(self):
+        try:
+            with open(self.csv_filename, 'x', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(['Transaction ID', 'Meter Start', 'Current Meter Value', 'Meter Stop', 'Is Meter Stop Sent'])
+        except FileExistsError:
+            pass
+
+    def add_transaction_to_csv(self, transaction_id, meter_start):
+        with open(self.csv_filename, 'a', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow([transaction_id, meter_start, '', '', 'No'])
+
+    def update_transaction_in_csv(self, transaction_id, current_meter_value=None, meter_stop=None, is_meter_stop_sent=None):
+        temp_filename = 'temp.csv'
+        with open(self.csv_filename, 'r', newline='') as csvfile, open(temp_filename, 'w', newline='') as tempfile:
+            reader = csv.reader(csvfile)
+            writer = csv.writer(tempfile)
+            for row in reader:
+                if row[0] == str(transaction_id):
+                    if current_meter_value is not None:
+                        row[2] = current_meter_value
+                    if meter_stop is not None:
+                        row[3] = meter_stop
+                    if is_meter_stop_sent is not None:
+                        row[4] = is_meter_stop_sent
+                writer.writerow(row)
+        os.replace(temp_filename, self.csv_filename)
+
 
 
     def update_connector_status(self, connector_id, status=None, error_code=None):
@@ -107,7 +141,6 @@ class ChargePoint(cp):
 
         for connector_id in range(len(self.connector_status)):
             self.relay_controllers[connector_id+1].close_relay()
-        
 
 
     def load_config(self):
@@ -227,6 +260,7 @@ class ChargePoint(cp):
             self.relay_controllers[connector_id].open_relay()
 
             self.update_connector_status(connector_id=connector_id, status='Charging', error_code='NoError')
+            self.add_transaction_to_csv(transaction_id, int(meter_start['energy']))
             logging.info(f"Transaction {transaction_id} started on connector {connector_id}")
             return True
         else:
@@ -262,12 +296,15 @@ class ChargePoint(cp):
             )
             await self.call(stop_transaction_request, suppress=True)
             self.relay_controllers[connector_id].close_relay()
+            self.update_transaction_in_csv(transaction_id, meter_stop=meter_stop, is_meter_stop_sent='Yes')
+
 
             # Update the connector status based on the reason
             if reason not in ['OverCurrent', 'VoltageOutOfRange']:
                 self.update_connector_status(connector_id, status='Available', error_code='NoError')
 
             del self.active_transactions[connector_id]
+
 
     async def send_periodic_meter_values(self):
         while True:
@@ -318,7 +355,7 @@ class ChargePoint(cp):
                     }]
                 )
                 await self.call(request)
-
+                self.update_transaction_in_csv(transaction['transaction_id'], current_meter_value=meter_value['energy'])
             await asyncio.sleep(int(self.config.get("MeterValueSampleInterval", 60)))
         
 
