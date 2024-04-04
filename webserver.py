@@ -69,6 +69,6 @@ def download_pm2_log():
     return send_file(pm2_log_file, as_attachment=True)
 
 if __name__ == '__main__':
-    if not check_internet_connection() or not check_pm2_status():
-        create_hotspot()
+    # if not check_internet_connection() or not check_pm2_status():
+    #     create_hotspot()
     app.run(host='0.0.0.0', port=5000, debug=True)
