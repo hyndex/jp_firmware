@@ -83,6 +83,17 @@ class ChargePoint(cp):
         super().__init__(*args, **kwargs)
         self.reset_data()
 
+
+    def update_connector_status(self, connector_id, status=None, error_code=None):
+        if status is not None:
+            self.connector_status[connector_id]['status'] = status
+        if error_code is not None:
+            self.connector_status[connector_id]['error_code'] = error_code
+        self.connector_status[connector_id]['notification_sent'] = False
+        # Trigger a status notification to inform the central system of the change
+        asyncio.create_task(self.send_status_notification(connector_id))
+
+
     def reset_data(self):
         self.meter = {}
         self.config_file = "config.json"
@@ -145,12 +156,12 @@ class ChargePoint(cp):
             if response.status == RegistrationStatus.accepted:
                 self.connected = True
                 logging.info("Connected to central system.")
-                for connector_id in range(1, int(self.config.get("NumberOfConnectors", 3)) + 1):
-                    await self.function_call_queue.put({
-                        "function": self.send_status_notification,
-                        "args": [connector_id],
-                        "kwargs": {}
-                    })
+                # for connector_id in range(1, int(self.config.get("NumberOfConnectors", 3)) + 1):
+                #     await self.function_call_queue.put({
+                #         "function": self.send_status_notification,
+                #         "args": [connector_id],
+                #         "kwargs": {}
+                #     })
             else:
                 logging.warning("Boot notification not accepted. Retrying...")
                 await asyncio.sleep(int(self.config.get("BootNotificationRetryInterval", 10)))
@@ -214,117 +225,102 @@ class ChargePoint(cp):
             }
             self.active_transactions[connector_id] = transaction
             self.relay_controllers[connector_id].open_relay()
-            self.connector_status[connector_id]['status'] = 'Charging'
-            self.connector_status[connector_id]['error_code'] = 'NoError'
-            self.connector_status[connector_id]['notification_sent'] = False
+
+            self.update_connector_status(connector_id=connector_id, status='Charging', error_code='NoError')
             logging.info(f"Transaction {transaction_id} started on connector {connector_id}")
             return True
         else:
             logging.error(f"Connector {connector_id} is already in use")
             return False
             
-
-    async def stop_transaction(self, connector_id):
+    async def stop_transaction(self, connector_id, reason=None):
         if connector_id in self.active_transactions:
             transaction = self.active_transactions[connector_id]
             transaction_id = transaction['transaction_id']
-            id_tag = transaction['id_tag']
             meter_stop = int(self.get_meter_value(connector_id)['energy'])
+
+            id_tag = transaction['id_tag']
             authorize_response = await self.authorize(id_tag)
             if not authorize_response:
                 logging.error(f"Authorization failed for idTag {id_tag}. Transaction not stopped.")
                 return False
 
-            try:
-                stop_transaction_request = call.StopTransactionPayload(
-                    meter_stop=int(meter_stop),
-                    timestamp=datetime.utcnow().isoformat(),
-                    transaction_id=transaction_id,
-                    id_tag=id_tag,
-                )
-                await self.call(stop_transaction_request, suppress=True)
-                self.relay_controllers[connector_id].close_relay()
-                logging.info(f"Transaction {transaction_id} stopped on connector {connector_id}")
-            except Exception as e:
-                logging.error(f"Error occurred while stopping transaction: {e}")
-            
+            # Validate the reason and set a default value if necessary
+            valid_reasons = [
+                'EmergencyStop', 'EVDisconnected', 'HardReset', 'Local',
+                'Other', 'PowerLoss', 'Reboot', 'Remote', 'SoftReset',
+                'UnlockCommand', 'DeAuthorized'
+            ]
+            if reason not in valid_reasons:
+                reason = 'Other'  # Set a default value for an invalid or unspecified reason
 
-            self.connector_status[connector_id]['status'] = 'Available'
-            self.connector_status[connector_id]['error_code'] = 'NoError'
-            self.connector_status[connector_id]['notification_sent'] = False
+            stop_transaction_request = call.StopTransactionPayload(
+                meter_stop=meter_stop,
+                timestamp=datetime.now().isoformat(),
+                transaction_id=transaction_id,
+                reason=reason
+            )
+            await self.call(stop_transaction_request, suppress=True)
+            self.relay_controllers[connector_id].close_relay()
+
+            # Update the connector status based on the reason
+            if reason not in ['OverCurrent', 'VoltageOutOfRange']:
+                self.update_connector_status(connector_id, status='Available', error_code='NoError')
+
             del self.active_transactions[connector_id]
-            await self.function_call_queue.put({
-                "function": asyncio.sleep,
-                "args": [20],
-                "kwargs": {}
-            })
-
-            await self.function_call_queue.put({
-                "function": self.call,
-                "args": [
-                    call.StatusNotificationPayload(
-                        connector_id=connector_id,
-                        status='Available',
-                        error_code='NoError'
-                    )
-                ],
-                "kwargs": {}
-            })
-            return True
-        else:
-            logging.warning(f"No active transaction found on connector {connector_id}")
-            return False
 
     async def send_periodic_meter_values(self):
         while True:
             for connector_id, transaction in self.active_transactions.items():
                 meter_value = self.get_meter_value(connector_id)
-                energy_sampled_value = {
-                    "value": str(meter_value['energy']),
-                    "context": "Sample.Periodic",
-                    "format": "Raw",
-                    "measurand": "Energy.Active.Import.Register",
-                    "location": "EV",
-                    "unit": "Wh"
-                }
-                voltage_sampled_value = {
-                    "value": str(meter_value['voltage']),
-                    "format": "Raw",
-                    "measurand": "Voltage",
-                    "unit": "V"
-                }
-                current_sampled_value = {
-                    "value": str(meter_value['current']),
-                    "format": "Raw",
-                    "measurand": "Current.Import",
-                    "unit": "A"
-                }
-                power_sampled_value = {
-                    "value": str(meter_value['power']),
-                    "format": "Raw",
-                    "measurand": "Power.Active.Import",  # Added power measurand
-                    "unit": "W"  # Unit for power is Watts (W)
-                }
+
+                sampled_data_config = self.config.get("MeterValuesSampledData", [])
+                sampled_values = []
+
+                for data in sampled_data_config:
+                    if data == "Energy.Active.Import.Register":
+                        sampled_values.append({
+                            "value": str(meter_value.get('energy', 0)),
+                            "context": "Sample.Periodic",
+                            "format": "Raw",
+                            "measurand": data,
+                            "location": "EV",
+                            "unit": "Wh"
+                        })
+                    elif data == "Voltage":
+                        sampled_values.append({
+                            "value": str(meter_value.get('voltage', 0)),
+                            "format": "Raw",
+                            "measurand": data,
+                            "unit": "V"
+                        })
+                    elif data == "Current.Import":
+                        sampled_values.append({
+                            "value": str(meter_value.get('current', 0)),
+                            "format": "Raw",
+                            "measurand": data,
+                            "unit": "A"
+                        })
+                    elif data == "Power.Active.Import":
+                        sampled_values.append({
+                            "value": str(meter_value.get('power', 0)),
+                            "format": "Raw",
+                            "measurand": data,
+                            "unit": "W"
+                        })
+
                 request = call.MeterValuesPayload(
                     connector_id=connector_id,
                     transaction_id=transaction['transaction_id'],
                     meter_value=[{
                         "timestamp": datetime.utcnow().isoformat(),
-                        "sampled_value": [energy_sampled_value]
-                    }, {
-                        "timestamp": datetime.utcnow().isoformat(),
-                        "sampled_value": [voltage_sampled_value]
-                    }, {
-                        "timestamp": datetime.utcnow().isoformat(),
-                        "sampled_value": [current_sampled_value]
-                    }, {
-                        "timestamp": datetime.utcnow().isoformat(),
-                        "sampled_value": [power_sampled_value]  # Added power sampled value
+                        "sampled_value": sampled_values
                     }]
                 )
-                response = await self.call(request)
-                print(response)
+                await self.call(request)
+
             await asyncio.sleep(int(self.config.get("MeterValueSampleInterval", 60)))
+        
 
     # Server Originating commands
     @on(Action.TriggerMessage)
@@ -371,7 +367,6 @@ class ChargePoint(cp):
         self.reset_data()
         return call_result.ClearCachePayload(status=ClearCacheStatus.accepted)
 
-
     @on(Action.Reset)
     async def handle_reset(self, **kwargs):
         reset_type = kwargs.get('type')
@@ -382,8 +377,7 @@ class ChargePoint(cp):
 
         # Set the status of all connectors to "Unavailable" and send StatusNotification
         for connector_id in self.connector_status:
-            self.connector_status[connector_id]['status'] = 'Unavailable'
-            self.connector_status[connector_id]['notification_sent'] = False
+            self.update_connector_status(connector_id=connector_id, status='Unavailable', error_code='NoError')
             asyncio.create_task(self.send_status_notification(connector_id))
 
         # Wait for 5 seconds to allow some time for status notifications to be sent
@@ -494,6 +488,7 @@ class ChargePoint(cp):
         return self.meter.get(connector_id, {'voltage': 0, 'current': 0, 'power': 0, 'energy': 0})
 
     def parse_metervalues(self, s):
+        # Parse actual meter values from serial data
         parts = re.split(r',(?=M)', s)
         result = {}
         for part in parts:
@@ -516,43 +511,55 @@ class ChargePoint(cp):
             }
         return result
 
-
     async def read_serial_data(self):
-        try:
-            ser = aioserial.AioSerial(
-                port='/dev/serial0',
-                baudrate=9600,
-                parity=aioserial.PARITY_NONE,
-                stopbits=aioserial.STOPBITS_ONE,
-                bytesize=aioserial.EIGHTBITS,
-                timeout=1
-            )
-            sleep_interval = 1  # Time interval between readings in seconds
+        if IS_PI == 0:
+            print('Simulating meter readings [Device is not recognised as PI]')
+            sleep_interval = 10  # Time interval between readings in seconds
             try:
                 while True:
-                    if ser.in_waiting > 0:
-                        line = await ser.readline_async()
-                        line = line.decode('utf-8').strip()
-                        if line:
-                            print(line)
-                            temp = self.parse_metervalues(line)
-                            for key, values in temp.items():
-                                if key in self.meter:
-                                    # Update energy based on power and time interval
-                                    self.meter[key]['energy'] += values['power'] * sleep_interval / 3600
-                                    values['energy'] = self.meter[key]['energy']
-                                self.meter[key] = values
-                            # print(self.meter)
+                    for key in range(1, int(self.config.get("NumberOfConnectors", 2)) + 1):
+                        if key not in self.meter:
+                            temp = {'voltage': 220, 'current': 60, 'power': 220*60, 'energy': 0}
+                            self.meter[key] = temp
+                        else:
+                            # Increment energy by (power in kW) * (time interval in hours)
+                            self.meter[key]['energy'] += (self.meter[key]['power']) * (sleep_interval / 3600)
+                    print('Meter', self.meter)
                     await asyncio.sleep(sleep_interval)
             except asyncio.CancelledError:
-                print("Serial reading cancelled.")
-            finally:
-                await asyncio.sleep(sleep_interval)
-                ser.close()
-        except Exception as e:
-            print(f"Serial error: {e}")
+                print("Simulation cancelled.")
+        else:
+            # Read actual meter data from serial when IS_PI is 1
+            try:
+                ser = aioserial.AioSerial(
+                    port='/dev/serial0',
+                    baudrate=9600,
+                    parity=aioserial.PARITY_NONE,
+                    stopbits=aioserial.STOPBITS_ONE,
+                    bytesize=aioserial.EIGHTBITS,
+                    timeout=1
+                )
+                sleep_interval = 1  # Time interval between readings in seconds
+                try:
+                    while True:
+                        if ser.in_waiting > 0:
+                            line = await ser.readline_async()
+                            line = line.decode('utf-8').strip()
+                            if line:
+                                print(line)
+                                temp = self.parse_metervalues(line)
+                                for key, values in temp.items():
+                                    if key in self.meter:
+                                        self.meter[key]['energy'] += (values['power']) * (sleep_interval / 3600)
+                                    self.meter[key] = values
+                        await asyncio.sleep(sleep_interval)
+                except asyncio.CancelledError:
+                    print("Serial reading cancelled.")
+                finally:
+                    ser.close()
+            except Exception as e:
+                print(f"Serial error: {e}")
 
-    
     def download_firmware(self, url, destination):
         try:
             response = requests.get(url, timeout=60)
