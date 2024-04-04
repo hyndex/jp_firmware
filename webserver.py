@@ -9,6 +9,9 @@ import socket
 import time
 import platform
 
+if platform.system() == 'Linux' and os.path.exists('/proc/device-tree/model'):
+    import pigpio
+    
 app = Flask(__name__)
 
 HARDWARE_DETAILS_FILE = 'hardware_details.json'

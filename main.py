@@ -8,6 +8,7 @@ import re
 import subprocess
 import threading
 from datetime import datetime
+import time
 
 import aioserial
 import requests
@@ -221,7 +222,7 @@ class ChargePoint(cp):
             request = call.StartTransactionPayload(connector_id=connector_id, id_tag=id_tag, meter_start=int(meter_start['energy']), timestamp=datetime.utcnow().isoformat())
             response = await self.call(request)
             transaction_id = response.transaction_id
-            transaction = {"transaction_id": transaction_id, "connector_id": connector_id, "id_tag": id_tag, "meter_start": int(meter_start['energy'])}
+            transaction = {"transaction_id": transaction_id, "connector_id": connector_id, "id_tag": id_tag, "meter_start": int(meter_start['energy']), "start_time": datetime.now()}
             self.active_transactions[connector_id] = transaction
             self.relay_controllers[connector_id].open_relay()
             self.update_connector_status(connector_id=connector_id, status='Charging', error_code='NoError')
@@ -248,9 +249,10 @@ class ChargePoint(cp):
             await self.call(stop_transaction_request, suppress=True)
             self.relay_controllers[connector_id].close_relay()
             self.update_transaction_in_csv(transaction_id, meter_stop=meter_stop, is_meter_stop_sent='Yes')
-            if reason not in ['OverCurrent', 'VoltageOutOfRange']:
+            if reason not in ['EmergencyStop', 'PowerLoss']:
                 self.update_connector_status(connector_id, status='Available', error_code='NoError')
             del self.active_transactions[connector_id]
+
 
     async def send_periodic_meter_values(self):
         while True:
@@ -262,15 +264,30 @@ class ChargePoint(cp):
                     if data == "Energy.Active.Import.Register":
                         sampled_values.append({"value": str(meter_value.get('energy', 0)), "context": "Sample.Periodic", "format": "Raw", "measurand": data, "location": "EV", "unit": "Wh"})
                     elif data == "Voltage":
-                        sampled_values.append({"value": str(meter_value.get('voltage', 0)), "format": "Raw", "measurand": data, "unit": "V"})
+                        voltage = meter_value.get('voltage', 0)
+                        if voltage < 210:
+                            await self.update_connector_status(connector_id, status='Faulted', error_code='UnderVoltage')
+                            await self.function_call_queue.put({"function": self.stop_transaction, "args": [connector_id], "kwargs": {"reason": "SuspendedEVSE"}})
+                        elif voltage > 260:
+                            await self.update_connector_status(connector_id, status='Faulted', error_code='OverVoltage')
+                            await self.function_call_queue.put({"function": self.stop_transaction, "args": [connector_id], "kwargs": {"reason": "SuspendedEVSE"}})
+                        sampled_values.append({"value": str(voltage), "format": "Raw", "measurand": data, "unit": "V"})
                     elif data == "Current.Import":
-                        sampled_values.append({"value": str(meter_value.get('current', 0)), "format": "Raw", "measurand": data, "unit": "A"})
+                        current = meter_value.get('current', 0)
+                        if current > 20:
+                            await self.update_connector_status(connector_id, status='Faulted', error_code='OverCurrentFailure')
+                            await self.function_call_queue.put({"function": self.stop_transaction, "args": [connector_id], "kwargs": {"reason": "SuspendedEVSE"}})
+                        sampled_values.append({"value": str(current), "format": "Raw", "measurand": data, "unit": "A"})
                     elif data == "Power.Active.Import":
+                        if datetime.datetime.now() - transaction['start_time'] >= datetime.timedelta(minutes=1):  # Check if a minute has passed since the session start
+                            if meter_value.get('power', 0) < 100:  # Check if the power is less than 100 watts
+                                await self.function_call_queue.put({"function": self.stop_transaction, "args": [connector_id], "kwargs": {"reason": "SuspendedEVSE"}})
                         sampled_values.append({"value": str(meter_value.get('power', 0)), "format": "Raw", "measurand": data, "unit": "W"})
                 request = call.MeterValuesPayload(connector_id=connector_id, transaction_id=transaction['transaction_id'], meter_value=[{"timestamp": datetime.utcnow().isoformat(), "sampled_value": sampled_values}])
                 await self.call(request)
                 self.update_transaction_in_csv(transaction['transaction_id'], current_meter_value=meter_value['energy'])
             await asyncio.sleep(int(self.config.get("MeterValueSampleInterval", 60)))
+
 
     @on(Action.TriggerMessage)
     async def on_trigger_message(self, **kwargs):
