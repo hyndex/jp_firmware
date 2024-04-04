@@ -265,22 +265,22 @@ class ChargePoint(cp):
                         sampled_values.append({"value": str(meter_value.get('energy', 0)), "context": "Sample.Periodic", "format": "Raw", "measurand": data, "location": "EV", "unit": "Wh"})
                     elif data == "Voltage":
                         voltage = meter_value.get('voltage', 0)
-                        if voltage < 210:
-                            await self.update_connector_status(connector_id, status='Faulted', error_code='UnderVoltage')
+                        if voltage < int(self.config.get("VoltageRestrictions_min", 210)):
+                            self.update_connector_status(connector_id, status='Faulted', error_code='UnderVoltage')
                             await self.function_call_queue.put({"function": self.stop_transaction, "args": [connector_id], "kwargs": {"reason": "SuspendedEVSE"}})
-                        elif voltage > 260:
-                            await self.update_connector_status(connector_id, status='Faulted', error_code='OverVoltage')
+                        elif voltage > int(self.config.get("VoltageRestrictions_max", 260)):
+                            self.update_connector_status(connector_id, status='Faulted', error_code='OverVoltage')
                             await self.function_call_queue.put({"function": self.stop_transaction, "args": [connector_id], "kwargs": {"reason": "SuspendedEVSE"}})
                         sampled_values.append({"value": str(voltage), "format": "Raw", "measurand": data, "unit": "V"})
                     elif data == "Current.Import":
                         current = meter_value.get('current', 0)
-                        if current > 20:
-                            await self.update_connector_status(connector_id, status='Faulted', error_code='OverCurrentFailure')
+                        if current > int(self.config.get("CurrentRestrictions_max", 20)):
+                            self.update_connector_status(connector_id, status='Faulted', error_code='OverCurrentFailure')
                             await self.function_call_queue.put({"function": self.stop_transaction, "args": [connector_id], "kwargs": {"reason": "SuspendedEVSE"}})
                         sampled_values.append({"value": str(current), "format": "Raw", "measurand": data, "unit": "A"})
                     elif data == "Power.Active.Import":
-                        if datetime.datetime.now() - transaction['start_time'] >= datetime.timedelta(minutes=1):  # Check if a minute has passed since the session start
-                            if meter_value.get('power', 0) < 100:  # Check if the power is less than 100 watts
+                        if datetime.datetime.now() - transaction['start_time'] >= datetime.timedelta(minutes=int(self.config.get("PowerTimingRestrictions_duration_minutes", 1))):  # Check if a minute has passed since the session start
+                            if meter_value.get('power', 0) < int(self.config.get("PowerTimingRestrictions_threshold", 100)):  # Check if the power is less than 100 watts
                                 await self.function_call_queue.put({"function": self.stop_transaction, "args": [connector_id], "kwargs": {"reason": "SuspendedEVSE"}})
                         sampled_values.append({"value": str(meter_value.get('power', 0)), "format": "Raw", "measurand": data, "unit": "W"})
                 request = call.MeterValuesPayload(connector_id=connector_id, transaction_id=transaction['transaction_id'], meter_value=[{"timestamp": datetime.utcnow().isoformat(), "sampled_value": sampled_values}])
