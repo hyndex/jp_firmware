@@ -47,7 +47,6 @@ def load_json_config(file_path):
 
 def is_raspberry_pi():
     if platform.system() == 'Linux':
-        # Check if '/proc/device-tree/model' contains 'Raspberry Pi'
         try:
             with open('/proc/device-tree/model', 'r') as file:
                 model_info = file.read()
@@ -55,7 +54,6 @@ def is_raspberry_pi():
         except FileNotFoundError:
             return False
     return False
-    # return platform.system() == 'Linux' and 'Raspberry Pi' in open('/proc/device-tree/model').read()
 
 def get_relay_pins():
     return {1: 22, 2: 27, 3: 10}
@@ -64,6 +62,7 @@ def get_relay_pins():
 class RelayController:
     def __init__(self, relay_pin):
         self.relay_pin = relay_pin
+        self.relay_state = 0  # 0: Off, 1: On
         if is_raspberry_pi():
             self.pi = pigpio.pi()
             if not self.pi.connected:
@@ -73,11 +72,15 @@ class RelayController:
     def open_relay(self):
         if is_raspberry_pi():
             self.pi.write(self.relay_pin, 1)
+        else:
+            self.relay_state = 1
         logging.info(f'Relay on GPIO {self.relay_pin} is turned ON.')
 
     def close_relay(self):
         if is_raspberry_pi():
             self.pi.write(self.relay_pin, 0)
+        else:
+            self.relay_state = 0
         logging.info(f'Relay on GPIO {self.relay_pin} is turned OFF.')
 
 class ChargePoint(cp):
@@ -136,9 +139,7 @@ class ChargePoint(cp):
         if error_code is not None:
             self.connector_status[connector_id]['error_code'] = error_code
         self.connector_status[connector_id]['notification_sent'] = False
-        # Trigger a status notification to inform the central system of the change
         asyncio.create_task(self.send_status_notification(connector_id))
-
 
     async def process_function_call_queue(self):
         while True:
@@ -169,7 +170,6 @@ class ChargePoint(cp):
             if response.status == RegistrationStatus.accepted:
                 self.connected = True
                 logging.info("Connected to central system.")
-                # Update the status of each connector based on current transactions
                 for connector_id in self.connector_status:
                     if connector_id in self.active_transactions:
                         self.update_connector_status(connector_id=connector_id, status='Charging', error_code='NoError')
@@ -202,7 +202,7 @@ class ChargePoint(cp):
             for connector_id, status_info in self.connector_status.items():
                 if not status_info['notification_sent']:
                     await self.send_status_notification(connector_id)
-            await asyncio.sleep(1)  # Adjust the interval as needed
+            await asyncio.sleep(1)
 
     async def send_status_notification(self, connector_id):
         status_info = self.connector_status[connector_id]
