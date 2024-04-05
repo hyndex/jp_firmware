@@ -9,6 +9,7 @@ import subprocess
 import threading
 from datetime import datetime
 import time
+from lcd_display_20_4 import update_lcd_line
 
 import aioserial
 import requests
@@ -23,6 +24,8 @@ from ocpp.v16.enums import (Action, AuthorizationStatus, ClearCacheStatus,
 if platform.system() == 'Linux' and os.path.exists('/proc/device-tree/model'):
     import pigpio
 
+
+
 # Constants
 CONFIG_FILE = "config.json"
 CHARGER_CONFIG_FILE = "charger.json"
@@ -34,8 +37,8 @@ NEW_FIRMWARE_PREFIX = "new_firmware_"
 SERIAL_PORT = '/dev/serial0'
 BAUD_RATE = 9600
 # GPIO Pins for Emergency Stop Condition
-EMERGENCY_STOP_PIN1 = 17  # Example GPIO pin number
-EMERGENCY_STOP_PIN2 = 18  # Another example GPIO pin number
+EMERGENCY_STOP_PIN1 = 5  # GPIO pin number
+EMERGENCY_STOP_PIN2 = 6  # Another GPIO pin number
 
 
 # Logging configuration
@@ -94,10 +97,29 @@ class ChargePoint(cp):
         self.reset_data()
         self.initialize_csv()
 
+        if is_raspberry_pi():
+            self.pi = pigpio.pi()
+            if not self.pi.connected:
+                raise RuntimeError("pigpio daemon is not running")
+
+
+    async def update_specific_lcd_line(self, line_number, message):
+        """
+        Update a specific line on the LCD with the given message.
+        :param line_number: The line number to update (1-4).
+        :param message: The message to display on the line.
+        """
+        # Call the update_lcd_line function with the specific line and message
+        update_lcd_line(line_number, message)
+
     async def emergency_stop_all_transactions(self):
         for connector_id in list(self.active_transactions.keys()):
             await self.stop_transaction(connector_id, reason='EmergencyStop')
-        logging.info("Emergency stop triggered for all transactions.")
+        # Set all connectors to 'Unavailable' regardless of whether a transaction was active
+        for connector_id in self.connector_status.keys():
+            self.update_connector_status(connector_id=connector_id, status='Unavailable', error_code='EmergencyStop')
+            asyncio.create_task(self.send_status_notification(connector_id))
+        logging.info("Emergency stop triggered for all transactions and connectors set to Unavailable.")
 
     def monitor_emergency_stop_pins(self):
         def emergency_stop_callback(gpio, level, tick):
@@ -240,6 +262,10 @@ class ChargePoint(cp):
         status_info = self.connector_status[connector_id]
         request = call.StatusNotificationPayload(connector_id=connector_id, status=status_info['status'], error_code=status_info['error_code'])
         await self.call(request)
+
+        if(status_info['status']!='Charging'):
+            await self.update_specific_lcd_line(connector_id, f'{status_info["status"]} {status_info["error_code"]}')
+
         status_info['notification_sent'] = True
         logging.info(f"StatusNotification sent for connector {connector_id} with status {status_info['status']} and error code {status_info['error_code']}")
 
@@ -318,6 +344,11 @@ class ChargePoint(cp):
                 request = call.MeterValuesPayload(connector_id=connector_id, transaction_id=transaction['transaction_id'], meter_value=[{"timestamp": datetime.utcnow().isoformat(), "sampled_value": sampled_values}])
                 await self.call(request)
                 self.update_transaction_in_csv(transaction['transaction_id'], current_meter_value=meter_value['energy'])
+
+                energy = meter_value.get('energy', 0)  # Assuming 'energy' key holds the energy value in Wh
+                energy_display_message = f"Energy: {energy}Wh"
+                await self.update_specific_lcd_line(connector_id, energy_display_message)
+
             await asyncio.sleep(int(self.config.get("MeterValueSampleInterval", 60)))
 
 
@@ -508,14 +539,53 @@ class ChargePoint(cp):
             os.rename(BACKUP_FIRMWARE_FILE, FIRMWARE_FILE)
             subprocess.run(['python3', FIRMWARE_FILE])
 
-# Main function
+# # Main function
+# async def main():
+#     charger_config = load_json_config(CHARGER_CONFIG_FILE)
+#     server_url = charger_config['server_url']
+#     charger_id = charger_config['charger_id']
+#     async with websockets.connect(f"{server_url}/{charger_id}", subprotocols=["ocpp1.6j"]) as ws:
+#         cp_instance = ChargePoint(charger_id, ws)
+#         await asyncio.gather(cp_instance.start(), cp_instance.send_boot_notification(), cp_instance.heartbeat(), cp_instance.send_periodic_meter_values(), cp_instance.send_status_notifications_loop(), cp_instance.read_serial_data(), cp_instance.async_monitor_emergency_stop_pins())
+
+# if __name__ == "__main__":
+#     asyncio.run(main())
+
+
 async def main():
     charger_config = load_json_config(CHARGER_CONFIG_FILE)
     server_url = charger_config['server_url']
     charger_id = charger_config['charger_id']
-    async with websockets.connect(f"{server_url}/{charger_id}", subprotocols=["ocpp1.6j"]) as ws:
-        cp_instance = ChargePoint(charger_id, ws)
-        await asyncio.gather(cp_instance.start(), cp_instance.send_boot_notification(), cp_instance.heartbeat(), cp_instance.send_periodic_meter_values(), cp_instance.send_status_notifications_loop(), cp_instance.read_serial_data(), cp_instance.async_monitor_emergency_stop_pins())
+
+    reconnection_delay = charger_config.get('reconnection_delay', 10)  # Reconnection delay in seconds
+
+    while True:
+        try:
+            # Try to connect to the server
+            async with websockets.connect(f"{server_url}/{charger_id}", subprotocols=["ocpp1.6j"]) as ws:
+                cp_instance = ChargePoint(charger_id, ws)
+                update_lcd_line(4, "Joulepoint, Charger Online")
+                await asyncio.gather(
+                    cp_instance.start(),
+                    cp_instance.send_boot_notification(),
+                    cp_instance.heartbeat(),
+                    cp_instance.send_periodic_meter_values(),
+                    cp_instance.send_status_notifications_loop(),
+                    cp_instance.read_serial_data(),
+                    cp_instance.async_monitor_emergency_stop_pins()
+                )
+        except (websockets.exceptions.WebSocketException, ConnectionRefusedError, ConnectionResetError) as e:
+            # Connection failed, log the error and wait before retrying
+            logging.error(f"Connection to server failed: {e}. Retrying in {reconnection_delay} seconds...")
+            update_lcd_line(4, "Server Disconnected. Retrying...")
+            await asyncio.sleep(reconnection_delay)
+        except KeyboardInterrupt:
+            # Program interrupted by user, break the loop and exit
+            break
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        # Handle any cleanup here if necessary
+        logging.info("Application stopped by the user.")
