@@ -45,6 +45,8 @@ energy_messages = [
     "2: Energy 1000 Wh",
     "3: Energy N/A"
 ]
+
+
 show_message(energy_messages, spacing=10)
 # No sleep here to keep the last message displayed
 
