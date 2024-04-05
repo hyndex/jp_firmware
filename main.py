@@ -10,6 +10,7 @@ import threading
 from datetime import datetime
 import time
 from lcd_display_20_4 import update_lcd_line
+from rfid import read_rfid, cleanup_rfid
 
 import aioserial
 import requests
@@ -71,6 +72,7 @@ class RelayController:
     def __init__(self, relay_pin):
         self.relay_pin = relay_pin
         self.relay_state = 0  # 0: Off, 1: On
+        self.last_rfid_read = None
         if is_raspberry_pi():
             self.pi = pigpio.pi()
             if not self.pi.connected:
@@ -111,6 +113,39 @@ class ChargePoint(cp):
         """
         # Call the update_lcd_line function with the specific line and message
         update_lcd_line(line_number, message)
+
+    async def start_transaction_with_rfid(self):
+        last_rfid_read = None
+        try:
+            while True:
+                # Attempt to read an RFID tag
+                rfid_id, rfid_text = await asyncio.to_thread(read_rfid)
+
+                # Check if a new RFID tag is detected
+                if rfid_id and rfid_id != last_rfid_read:
+                    print(f"New RFID tag detected: ID {rfid_id}")
+                    # Loop through all connectors
+                    for connector_id, status_info in self.connector_status.items():
+                        # Check if the connector is available for a transaction
+                        if status_info['status'] == 'Available':
+                            # Put the start_transaction call into the function call queue
+                            await self.function_call_queue.put({
+                                "function": self.start_transaction,
+                                "args": [connector_id, rfid_id],
+                                "kwargs": {}
+                            })
+                    # Update the last RFID read
+                    last_rfid_read = rfid_id
+                else:
+                    # Reset last_rfid_read if the card is away from the reader for a certain time (e.g., 5 seconds)
+                    if last_rfid_read and time.time() - self.last_rfid_timestamp > 5:
+                        last_rfid_read = None
+
+                # Debounce delay
+                await asyncio.sleep(1)
+        except KeyboardInterrupt:
+            print("RFID reading stopped by the user.")
+            cleanup_rfid()
 
     async def emergency_stop_all_transactions(self):
         for connector_id in list(self.active_transactions.keys()):
@@ -552,19 +587,64 @@ class ChargePoint(cp):
 #     asyncio.run(main())
 
 
+# async def main():
+#     charger_config = load_json_config(CHARGER_CONFIG_FILE)
+#     server_url = charger_config['server_url']
+#     charger_id = charger_config['charger_id']
+
+#     reconnection_delay = charger_config.get('reconnection_delay', 10)  # Reconnection delay in seconds
+
+#     while True:
+#         try:
+#             # Try to connect to the server
+#             async with websockets.connect(f"{server_url}/{charger_id}", subprotocols=["ocpp1.6j"]) as ws:
+#                 cp_instance = ChargePoint(charger_id, ws)
+#                 update_lcd_line(4, "Joulepoint, Online")
+#                 await asyncio.gather(
+#                     cp_instance.start(),
+#                     cp_instance.send_boot_notification(),
+#                     cp_instance.heartbeat(),
+#                     cp_instance.send_periodic_meter_values(),
+#                     cp_instance.send_status_notifications_loop(),
+#                     cp_instance.read_serial_data(),
+#                     cp_instance.async_monitor_emergency_stop_pins(),
+#                     cp_instance.start_transaction_with_rfid()
+#                 )
+#         except (websockets.exceptions.WebSocketException, ConnectionRefusedError, ConnectionResetError) as e:
+#             # Connection failed, log the error and wait before retrying
+#             logging.error(f"Connection to server failed: {e}. Retrying in {reconnection_delay} seconds...")
+#             update_lcd_line(4, "Server Disconnected. Retrying...")
+#             await asyncio.sleep(reconnection_delay)
+#         except KeyboardInterrupt:
+#             # Program interrupted by user, break the loop and exit
+#             break
+
+# if __name__ == "__main__":
+#     try:
+#         asyncio.run(main())
+#     except KeyboardInterrupt:
+#         # Handle any cleanup here if necessary
+#         logging.info("Application stopped by the user.")
+
+
+
 async def main():
     charger_config = load_json_config(CHARGER_CONFIG_FILE)
     server_url = charger_config['server_url']
     charger_id = charger_config['charger_id']
 
-    reconnection_delay = charger_config.get('reconnection_delay', 10)  # Reconnection delay in seconds
+    reconnection_delay = charger_config.get('reconnection_delay', 10)  # In seconds
 
     while True:
         try:
-            # Try to connect to the server
+            # Attempt to connect to the server using websockets
             async with websockets.connect(f"{server_url}/{charger_id}", subprotocols=["ocpp1.6j"]) as ws:
                 cp_instance = ChargePoint(charger_id, ws)
-                update_lcd_line(4, "Joulepoint, Charger Online")
+
+                # Display a message on LCD
+                update_lcd_line(4, "Joulepoint, Online")
+
+                # Run all tasks concurrently
                 await asyncio.gather(
                     cp_instance.start(),
                     cp_instance.send_boot_notification(),
@@ -572,20 +652,29 @@ async def main():
                     cp_instance.send_periodic_meter_values(),
                     cp_instance.send_status_notifications_loop(),
                     cp_instance.read_serial_data(),
-                    cp_instance.async_monitor_emergency_stop_pins()
+                    cp_instance.async_monitor_emergency_stop_pins(),
+                    cp_instance.start_transaction_with_rfid()
                 )
+
         except (websockets.exceptions.WebSocketException, ConnectionRefusedError, ConnectionResetError) as e:
-            # Connection failed, log the error and wait before retrying
+            # Handle reconnection on WebSocket errors
             logging.error(f"Connection to server failed: {e}. Retrying in {reconnection_delay} seconds...")
             update_lcd_line(4, "Server Disconnected. Retrying...")
             await asyncio.sleep(reconnection_delay)
+        except Exception as e:
+            # Handle any other exceptions
+            logging.error(f"Unexpected error: {e}")
+            update_lcd_line(4, "Unexpected Error. Retrying...")
+            await asyncio.sleep(reconnection_delay)
         except KeyboardInterrupt:
-            # Program interrupted by user, break the loop and exit
+            # Exit the loop if the program is interrupted by the user
             break
 
 if __name__ == "__main__":
+    # Run the main function until interrupted
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        # Handle any cleanup here if necessary
+        # Cleanup and close operations
         logging.info("Application stopped by the user.")
+        cleanup_rfid()
