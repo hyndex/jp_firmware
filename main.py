@@ -144,8 +144,8 @@ class ChargePoint(cp):
 
                 # Debounce delay
                 await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            print("RFID reading stopped by the user.")
+        except Exception as e:
+            logging.error(f"Error in RFID read loop: {e}")
             cleanup_rfid()
 
     async def emergency_stop_all_transactions(self):
