@@ -21,6 +21,7 @@ def is_raspberry_pi():
 def update_lcd_line(line_number, message, cols=20):
 
 
+    message = str(line_number)+' '+message
     if(not is_raspberry_pi()):
         print('################',line_number, message)
         return
