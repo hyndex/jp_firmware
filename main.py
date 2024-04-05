@@ -120,6 +120,7 @@ class ChargePoint(cp):
             while True:
                 # Attempt to read an RFID tag
                 rfid_id, rfid_text = await asyncio.to_thread(read_rfid)
+                logging.info(f'RFID Reading {rfid_id} {rfid_text}')
 
                 # Check if a new RFID tag is detected
                 if rfid_id and rfid_id != last_rfid_read:

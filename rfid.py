@@ -22,6 +22,11 @@
 import platform
 import os
 
+
+def is_raspberry_pi():
+    return platform.system() == 'Linux' and os.path.exists('/proc/device-tree/model')
+
+
 # Only import the GPIO library and create the reader if we're on a Raspberry Pi
 if platform.system() == 'Linux' and os.path.exists('/proc/device-tree/model'):
     import RPi.GPIO as GPIO
@@ -50,5 +55,4 @@ def cleanup_rfid():
     if GPIO is not None:
         GPIO.cleanup()
 
-def is_raspberry_pi():
-    return platform.system() == 'Linux' and os.path.exists('/proc/device-tree/model')
+
