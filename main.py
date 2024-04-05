@@ -115,6 +115,7 @@ class ChargePoint(cp):
         update_lcd_line(line_number, message)
 
     async def start_transaction_with_rfid(self):
+        logging.info(f'RFID Started')
         last_rfid_read = None
         try:
             while True:
@@ -654,7 +655,7 @@ async def main():
                     cp_instance.send_status_notifications_loop(),
                     cp_instance.read_serial_data(),
                     cp_instance.start_transaction_with_rfid(),
-                    # cp_instance.async_monitor_emergency_stop_pins(),
+                    cp_instance.async_monitor_emergency_stop_pins(),
                 )
 
         except (websockets.exceptions.WebSocketException, ConnectionRefusedError, ConnectionResetError) as e:
