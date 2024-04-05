@@ -33,6 +33,10 @@ TEMP_CSV_FILE = "temp.csv"
 NEW_FIRMWARE_PREFIX = "new_firmware_"
 SERIAL_PORT = '/dev/serial0'
 BAUD_RATE = 9600
+# GPIO Pins for Emergency Stop Condition
+EMERGENCY_STOP_PIN1 = 17  # Example GPIO pin number
+EMERGENCY_STOP_PIN2 = 18  # Another example GPIO pin number
+
 
 # Logging configuration
 logging.basicConfig(level=logging.INFO)
@@ -90,6 +94,32 @@ class ChargePoint(cp):
         self.reset_data()
         self.initialize_csv()
 
+    async def emergency_stop_all_transactions(self):
+        for connector_id in list(self.active_transactions.keys()):
+            await self.stop_transaction(connector_id, reason='EmergencyStop')
+        logging.info("Emergency stop triggered for all transactions.")
+
+    def monitor_emergency_stop_pins(self):
+        def emergency_stop_callback(gpio, level, tick):
+            asyncio.run(self.emergency_stop_all_transactions())
+
+        if is_raspberry_pi():
+            self.pi.set_mode(EMERGENCY_STOP_PIN1, pigpio.INPUT)
+            self.pi.set_pull_up_down(EMERGENCY_STOP_PIN1, pigpio.PUD_DOWN)
+            self.pi.set_mode(EMERGENCY_STOP_PIN2, pigpio.INPUT)
+            self.pi.set_pull_up_down(EMERGENCY_STOP_PIN2, pigpio.PUD_DOWN)
+            
+            self.pi.set_glitch_filter(EMERGENCY_STOP_PIN1, 100)  # Set a glitch filter to debounce
+            self.pi.set_glitch_filter(EMERGENCY_STOP_PIN2, 100)  # Set a glitch filter to debounce
+
+            self.pi.callback(EMERGENCY_STOP_PIN1, pigpio.EITHER_EDGE, emergency_stop_callback)
+            self.pi.callback(EMERGENCY_STOP_PIN2, pigpio.EITHER_EDGE, emergency_stop_callback)
+
+
+    async def async_monitor_emergency_stop_pins(self):
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self.monitor_emergency_stop_pins)
+
     def initialize_csv(self):
         try:
             with open(CSV_FILENAME, 'x', newline='') as csvfile:
@@ -122,7 +152,8 @@ class ChargePoint(cp):
         self.meter = {}
         self.config = load_json_config(CONFIG_FILE)
         self.active_transactions = self.config.get("active_transactions", {})
-        self.relay_controllers = {connector_id: RelayController(relay_pin) for connector_id, relay_pin in get_relay_pins().items()}
+        relay_pins = self.config.get("RelayPins", {})
+        self.relay_controllers = {int(connector_id): RelayController(relay_pin) for connector_id, relay_pin in relay_pins.items()}
         self.connector_status = {connector_id: {"status": "Available", "error_code": "NoError", "notification_sent": False}
                                  for connector_id in range(1, int(self.config.get("NumberOfConnectors", 2)) + 1)}
         self.function_call_queue = asyncio.Queue()
@@ -484,7 +515,7 @@ async def main():
     charger_id = charger_config['charger_id']
     async with websockets.connect(f"{server_url}/{charger_id}", subprotocols=["ocpp1.6j"]) as ws:
         cp_instance = ChargePoint(charger_id, ws)
-        await asyncio.gather(cp_instance.start(), cp_instance.send_boot_notification(), cp_instance.heartbeat(), cp_instance.send_periodic_meter_values(), cp_instance.send_status_notifications_loop(), cp_instance.read_serial_data())
+        await asyncio.gather(cp_instance.start(), cp_instance.send_boot_notification(), cp_instance.heartbeat(), cp_instance.send_periodic_meter_values(), cp_instance.send_status_notifications_loop(), cp_instance.read_serial_data(), cp_instance.async_monitor_emergency_stop_pins())
 
 if __name__ == "__main__":
     asyncio.run(main())
