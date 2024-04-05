@@ -115,40 +115,51 @@ class ChargePoint(cp):
         update_lcd_line(line_number, message)
 
 
-    # async def start_transaction_with_rfid(self):
-    #     logging.info('RFID Started')
-    #     last_rfid_read = None  # Initialize last_rfid_read before using it
-    #     try:
-    #         while True:
-    #             rfid_id, rfid_text = await read_rfid()  # Get RFID data from the queue
-    #             logging.info(f'RFID Reading {rfid_id} {rfid_text}')
+    async def start_transaction_with_rfid(self):
+        logging.info('RFID Started')
+        last_rfid_read = None  # Initialize last_rfid_read to None
 
-    #             # Check if a new RFID tag is detected
-    #             if rfid_id and rfid_id != last_rfid_read:
-    #                 print(f"New RFID tag detected: ID {rfid_id}")
-    #                 # Loop through all connectors
-    #                 for connector_id, status_info in self.connector_status.items():
-    #                     # Check if the connector is available for a transaction
-    #                     if status_info['status'] == 'Available':
-    #                         # Put the start_transaction call into the function call queue
-    #                         await self.function_call_queue.put({
-    #                             "function": self.start_transaction,
-    #                             "args": [connector_id, rfid_id],
-    #                             "kwargs": {}
-    #                         })
-    #                 # Update the last RFID read
-    #                 last_rfid_read = rfid_id
-    #             else:
-    #                 # Reset last_rfid_read if the card is away from the reader for a certain time (e.g., 5 seconds)
-    #                 if last_rfid_read and time.time() - self.last_rfid_timestamp > 5:
-    #                     last_rfid_read = None
+        try:
+            while True:
+                # Try reading the RFID data from the file
+                try:
+                    if os.path.exists("/dev/shm/rfid.json"):
+                        with open("/dev/shm/rfid.json", "r") as file:
+                            rfid_data = json.load(file)
+                            rfid_id = rfid_data.get("id")
+                            rfid_text = rfid_data.get("text")
+                    else:
+                        logging.info("RFID file not found. Waiting for RFID tag...")
+                        await asyncio.sleep(1)
+                        continue
+                except Exception as e:
+                    logging.error(f"Error reading RFID data from file: {e}")
+                    await asyncio.sleep(1)
+                    continue
 
-    #             # Debounce delay
-    #             await asyncio.sleep(1)
-    #     except Exception as e:
-    #         logging.error(f"Error in RFID read loop: {e}")
-    #         cleanup_rfid()
+                # Check if the file was read successfully and if a new RFID tag is detected
+                if rfid_id and rfid_id != last_rfid_read:
+                    logging.info(f"New RFID tag detected: ID {rfid_id}, Text: {rfid_text}")
+                    # Loop through all connectors
+                    for connector_id, status_info in self.connector_status.items():
+                        # Check if the connector is available for a transaction
+                        if status_info['status'] == 'Available':
+                            # Put the start_transaction call into the function call queue
+                            await self.function_call_queue.put({
+                                "function": self.start_transaction,
+                                "args": [connector_id, rfid_id],
+                                "kwargs": {}
+                            })
+                    # Update the last RFID read
+                    last_rfid_read = rfid_id
+                else:
+                    logging.info("No new RFID tag detected or the same RFID tag is still present.")
 
+                # Debounce delay
+                await asyncio.sleep(1)
+
+        except Exception as e:
+            logging.error(f"Unexpected error in RFID read loop: {e}")
 
 
     async def emergency_stop_all_transactions(self):
