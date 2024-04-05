@@ -121,7 +121,7 @@ class ChargePoint(cp):
         last_rfid_read = None  # Initialize last_rfid_read before using it
         try:
             while True:
-                rfid_id, rfid_text = read_rfid()  # Get RFID data from the queue
+                rfid_id, rfid_text = await read_rfid()  # Get RFID data from the queue
                 logging.info(f'RFID Reading {rfid_id} {rfid_text}')
 
                 # Check if a new RFID tag is detected
