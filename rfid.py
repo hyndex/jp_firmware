@@ -34,12 +34,13 @@ else:
 def read_rfid():
     # If we're not on a Raspberry Pi, just simulate a read
     if not is_raspberry_pi():
-        # print("Simulated RFID read (no hardware found)")
+        print("Simulated RFID read (no hardware found)")
         return None, None
 
     # If we're on a Raspberry Pi, perform the actual read
     try:
         id, text = reader.read()
+        print('RFID',id,text)
         return id, text
     except Exception as e:
         print(f"RFID read error: {e}")
