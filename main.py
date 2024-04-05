@@ -10,7 +10,6 @@ import threading
 from datetime import datetime
 import time
 from lcd_display_20_4 import update_lcd_line
-from rfid import read_rfid, cleanup_rfid
 
 import aioserial
 import requests
@@ -116,39 +115,41 @@ class ChargePoint(cp):
         update_lcd_line(line_number, message)
 
 
-    async def start_transaction_with_rfid(self):
-        logging.info('RFID Started')
-        last_rfid_read = None  # Initialize last_rfid_read before using it
-        try:
-            while True:
-                rfid_id, rfid_text = await read_rfid()  # Get RFID data from the queue
-                logging.info(f'RFID Reading {rfid_id} {rfid_text}')
+    # async def start_transaction_with_rfid(self):
+    #     logging.info('RFID Started')
+    #     last_rfid_read = None  # Initialize last_rfid_read before using it
+    #     try:
+    #         while True:
+    #             rfid_id, rfid_text = await read_rfid()  # Get RFID data from the queue
+    #             logging.info(f'RFID Reading {rfid_id} {rfid_text}')
 
-                # Check if a new RFID tag is detected
-                if rfid_id and rfid_id != last_rfid_read:
-                    print(f"New RFID tag detected: ID {rfid_id}")
-                    # Loop through all connectors
-                    for connector_id, status_info in self.connector_status.items():
-                        # Check if the connector is available for a transaction
-                        if status_info['status'] == 'Available':
-                            # Put the start_transaction call into the function call queue
-                            await self.function_call_queue.put({
-                                "function": self.start_transaction,
-                                "args": [connector_id, rfid_id],
-                                "kwargs": {}
-                            })
-                    # Update the last RFID read
-                    last_rfid_read = rfid_id
-                else:
-                    # Reset last_rfid_read if the card is away from the reader for a certain time (e.g., 5 seconds)
-                    if last_rfid_read and time.time() - self.last_rfid_timestamp > 5:
-                        last_rfid_read = None
+    #             # Check if a new RFID tag is detected
+    #             if rfid_id and rfid_id != last_rfid_read:
+    #                 print(f"New RFID tag detected: ID {rfid_id}")
+    #                 # Loop through all connectors
+    #                 for connector_id, status_info in self.connector_status.items():
+    #                     # Check if the connector is available for a transaction
+    #                     if status_info['status'] == 'Available':
+    #                         # Put the start_transaction call into the function call queue
+    #                         await self.function_call_queue.put({
+    #                             "function": self.start_transaction,
+    #                             "args": [connector_id, rfid_id],
+    #                             "kwargs": {}
+    #                         })
+    #                 # Update the last RFID read
+    #                 last_rfid_read = rfid_id
+    #             else:
+    #                 # Reset last_rfid_read if the card is away from the reader for a certain time (e.g., 5 seconds)
+    #                 if last_rfid_read and time.time() - self.last_rfid_timestamp > 5:
+    #                     last_rfid_read = None
 
-                # Debounce delay
-                await asyncio.sleep(1)
-        except Exception as e:
-            logging.error(f"Error in RFID read loop: {e}")
-            cleanup_rfid()
+    #             # Debounce delay
+    #             await asyncio.sleep(1)
+    #     except Exception as e:
+    #         logging.error(f"Error in RFID read loop: {e}")
+    #         cleanup_rfid()
+
+
 
     async def emergency_stop_all_transactions(self):
         for connector_id in list(self.active_transactions.keys()):
@@ -655,7 +656,7 @@ async def main():
                     cp_instance.send_periodic_meter_values(),
                     cp_instance.send_status_notifications_loop(),
                     cp_instance.read_serial_data(),
-                    cp_instance.start_transaction_with_rfid(),
+                    # cp_instance.start_transaction_with_rfid(),
                     cp_instance.async_monitor_emergency_stop_pins(),
                 )
 
@@ -680,4 +681,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         # Cleanup and close operations
         logging.info("Application stopped by the user.")
-        cleanup_rfid()
