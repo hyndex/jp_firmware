@@ -124,8 +124,8 @@ class ChargePoint(cp):
                     if os.path.exists("/dev/shm/rfid.json"):
                         with open("/dev/shm/rfid.json", "r") as file:
                             rfid_data = json.load(file)
-                            rfid_id = rfid_data.get("id")
-                            rfid_text = rfid_data.get("text")
+                            rfid_id = str(rfid_data.get("id"))
+                            rfid_text = str(rfid_data.get("text"))
                     else:
                         logging.info("RFID file not found. Waiting for RFID tag...")
                         await asyncio.sleep(1)
