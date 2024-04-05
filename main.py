@@ -72,7 +72,6 @@ class RelayController:
         self.relay_pin = relay_pin
         self.relay_state = 0  # 0: Off, 1: On
         self.last_rfid_read = None
-        self.rfid_queue = asyncio.Queue()  # Add this line to create an RFID queue
         if is_raspberry_pi():
             self.pi = pigpio.pi()
             if not self.pi.connected:
@@ -118,7 +117,6 @@ class ChargePoint(cp):
     async def start_transaction_with_rfid(self):
         logging.info('RFID Started')
         last_rfid_read = None  # Initialize last_rfid_read to None
-
         try:
             while True:
                 # Try reading the RFID data from the file
@@ -667,7 +665,7 @@ async def main():
                     cp_instance.send_periodic_meter_values(),
                     cp_instance.send_status_notifications_loop(),
                     cp_instance.read_serial_data(),
-                    # cp_instance.start_transaction_with_rfid(),
+                    cp_instance.start_transaction_with_rfid(),
                     cp_instance.async_monitor_emergency_stop_pins(),
                 )
 
