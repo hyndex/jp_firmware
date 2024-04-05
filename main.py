@@ -73,6 +73,7 @@ class RelayController:
         self.relay_pin = relay_pin
         self.relay_state = 0  # 0: Off, 1: On
         self.last_rfid_read = None
+        self.rfid_queue = asyncio.Queue()  # Add this line to create an RFID queue
         if is_raspberry_pi():
             self.pi = pigpio.pi()
             if not self.pi.connected:
@@ -114,13 +115,13 @@ class ChargePoint(cp):
         # Call the update_lcd_line function with the specific line and message
         update_lcd_line(line_number, message)
 
+
     async def start_transaction_with_rfid(self):
-        logging.info(f'RFID Started')
-        last_rfid_read = None
+        logging.info('RFID Started')
+        last_rfid_read = None  # Initialize last_rfid_read before using it
         try:
             while True:
-                # Attempt to read an RFID tag
-                rfid_id, rfid_text = await asyncio.to_thread(read_rfid)
+                rfid_id, rfid_text = read_rfid()  # Get RFID data from the queue
                 logging.info(f'RFID Reading {rfid_id} {rfid_text}')
 
                 # Check if a new RFID tag is detected
