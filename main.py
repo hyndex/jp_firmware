@@ -121,6 +121,8 @@ class ChargePoint(cp):
 
     async def monitor_and_process_rfid(self):
         """Monitors for RFID tags and processes them."""
+        logging.info('RFID monitoring started.')
+
         reader = SimpleMFRC522()
         last_write_time = time.time()
 
@@ -131,14 +133,18 @@ class ChargePoint(cp):
                     text = text.strip("\x00") if text else ""
                     current_time = time.time()
 
+                    # Log every RFID read for auditing and debugging
+                    logging.debug(f"RFID read: ID {id}, Text: '{text}'.")
+
                     # Compare new read with last saved RFID data
                     if id != self.last_rfid_read["id"] or text != self.last_rfid_read["text"] or (current_time - last_write_time >= self.RFID_EXPIRY_TIME):
                         self.last_rfid_read = {"id": str(id), "text": text}
-                        logging.info(f"New RFID data: ID {id}, Text: {text}")
+                        logging.info(f"New RFID data: ID {id}, Text: '{text}'.")
 
                         # Loop through all connectors and initiate transactions if the connector is available
                         for connector_id, status_info in self.connector_status.items():
                             if status_info['status'] == 'Available':
+                                logging.info(f"Initiating transaction for connector {connector_id} with RFID ID {id}.")
                                 await self.function_call_queue.put({
                                     "function": self.start_transaction,
                                     "args": [connector_id, str(id)],
@@ -146,11 +152,15 @@ class ChargePoint(cp):
                                 })
 
                     last_write_time = current_time
+                else:
+                    # Log when no RFID is read, this can be set to DEBUG if logging every second is too verbose
+                    logging.debug("No RFID tag read.")
 
                 await asyncio.sleep(1)  # Non-blocking wait before checking for RFID tag again
             except Exception as e:
                 logging.error(f"Error in RFID monitoring loop: {e}")
 
+#
     async def emergency_stop_all_transactions(self):
         for connector_id in list(self.active_transactions.keys()):
             await self.stop_transaction(connector_id, reason='EmergencyStop')
@@ -656,7 +666,7 @@ async def main():
                     cp_instance.send_periodic_meter_values(),
                     cp_instance.send_status_notifications_loop(),
                     cp_instance.read_serial_data(),
-                    # cp_instance.start_transaction_with_rfid(),
+                    cp_instance.monitor_and_process_rfid(),
                     cp_instance.async_monitor_emergency_stop_pins(),
                 )
 
