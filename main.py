@@ -194,7 +194,7 @@ class ChargePoint(cp):
             logging.debug(f"Connector status updated to Unavailable for connector {connector_id}.")
         logging.info("Emergency stop triggered for all transactions and connectors set to Unavailable.")
 
-    async def setup_emergency_stop_pins(self):
+    def setup_emergency_stop_pins(self):
         # Set PIN1 as output, initially LOW
         self.pi.set_mode(EMERGENCY_STOP_PIN1, pigpio.OUTPUT)
         self.pi.write(EMERGENCY_STOP_PIN1, 0)  # Send LOW signal
