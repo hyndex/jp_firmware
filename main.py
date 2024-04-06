@@ -104,6 +104,7 @@ class ChargePoint(cp):
         self.RFID_EXPIRY_TIME = 5  # Seconds
         self.setup_emergency_stop_pins()
         self.emergency_status=False
+        self.last_sent_status_info = {}
 
         if is_raspberry_pi():
             self.pi = pigpio.pi()
@@ -253,7 +254,10 @@ class ChargePoint(cp):
             self.connector_status[connector_id]['status'] = status
         if error_code is not None:
             self.connector_status[connector_id]['error_code'] = error_code
-        self.connector_status[connector_id]['notification_sent'] = False
+        # Set notification_sent to False only if the status or error_code has changed
+        if self.connector_status[connector_id].get('status') != self.last_sent_status_info.get(connector_id, {}).get('status') or \
+           self.connector_status[connector_id].get('error_code') != self.last_sent_status_info.get(connector_id, {}).get('error_code'):
+            self.connector_status[connector_id]['notification_sent'] = False
         asyncio.create_task(self.send_status_notification(connector_id))
 
     async def process_function_call_queue(self):
@@ -312,12 +316,19 @@ class ChargePoint(cp):
         response = await self.call(request)
         return response.id_tag_info['status'] == AuthorizationStatus.accepted
 
-    async def send_status_notifications_loop(self):
-        while True:
-            for connector_id, status_info in self.connector_status.items():
-                if not status_info['notification_sent']:
-                    await self.send_status_notification(connector_id)
-            await asyncio.sleep(1)
+    async def send_status_notification(self, connector_id):
+        status_info = self.connector_status[connector_id]
+        # Proceed only if a notification hasn't been sent for the current status and error_code
+        if not status_info['notification_sent']:
+            request = call.StatusNotificationPayload(connector_id=connector_id, status=status_info['status'], error_code=status_info['error_code'])
+            await self.call(request)
+            if(status_info['status'] != 'Charging'):
+                await self.update_specific_lcd_line(connector_id, f'{status_info["status"]} {status_info["error_code"]}')
+            status_info['notification_sent'] = True
+            # Update last sent status info to current for comparison in future updates
+            self.last_sent_status_info[connector_id] = {'status': status_info['status'], 'error_code': status_info['error_code']}
+            logging.info(f"StatusNotification sent for connector {connector_id} with status {status_info['status']} and error_code {status_info['error_code']}")
+
 
     async def send_status_notification(self, connector_id):
         status_info = self.connector_status[connector_id]
@@ -371,7 +382,6 @@ class ChargePoint(cp):
             if reason not in ['EmergencyStop', 'PowerLoss']:
                 self.update_connector_status(connector_id, status='Available', error_code='NoError')
             del self.active_transactions[connector_id]
-
 
     async def send_periodic_meter_values(self):
         while True:
