@@ -123,7 +123,7 @@ class ChargePoint(cp):
         """Monitors for RFID tags and processes them."""
         logging.info('RFID monitoring started.')
 
-        reader = SimpleMFRC522()
+        reader = SimpleMFRC522(pi=self.pi) 
         last_write_time = time.time()
 
         while True:

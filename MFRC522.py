@@ -102,7 +102,8 @@ class MFRC522:
 
     serNum = []
 
-    def __init__(self, bus=0, device=0, spd=1000000, pin_mode=None, pin_rst=-1, debugLevel='WARNING'):
+    def __init__(self, bus=0, device=0, spd=1000000, pin_mode=None, pin_rst=-1, debugLevel='WARNING', pi=None):
+        
         self.spi = spidev.SpiDev()
         self.spi.open(bus, device)
         self.spi.max_speed_hz = spd
@@ -112,7 +113,7 @@ class MFRC522:
         level = logging.getLevelName(debugLevel)
         self.logger.setLevel(level)
 
-        self.pi = pigpio.pi()  # Connect to pigpio daemon
+        self.pi = pi if pi else pigpio.pi()
 
         if pin_rst != -1:
             self.pi.set_mode(pin_rst, pigpio.OUTPUT)
@@ -402,7 +403,7 @@ class SimpleMFRC522:
   BLOCK_ADDRS = [8, 9, 10]
   
   def __init__(self):
-    self.READER = MFRC522()
+    self.READER = MFRC522(pi=pi)
   
   def read(self):
       id, text = self.read_no_block()
