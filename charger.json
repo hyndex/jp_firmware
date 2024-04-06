@@ -1,1 +1,7 @@
-{"server_url": "ws://ocpp-test.joulepoint.com:80", "charger_id": "JPOSBHARATAC2023"}
+{
+    "server_url": "ws://ocpp-test.joulepoint.com:80",
+    "charger_id": "JPOSBHARATAC2023",
+    "wifi_ssid": "Joulepoint-Charger-Wifi",
+    "wifi_password": "1qaz2wsx"
+  }
+  

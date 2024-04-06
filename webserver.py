@@ -19,9 +19,31 @@ app = Flask(__name__)
 
 HARDWARE_DETAILS_FILE = 'hardware_details.json'
 CHARGING_SESSIONS_FILE = 'charging_sessions.csv'
+CHARGER_DETAILS_FILE = 'charger.json'
 EMERGENCY_STOP_PIN1 = 5  # Output GPIO pin number
 EMERGENCY_STOP_PIN2 = 6  # Input GPIO pin number for the emergency stop button
 button_press_times = []  # To track the timestamps of the emergency button presses
+
+
+def load_charger_details():
+    """Load charger details from JSON file."""
+    if os.path.exists(CHARGER_DETAILS_FILE):
+        with open(CHARGER_DETAILS_FILE, 'r') as file:
+            return json.load(file)
+    return {"server_url": "", "charger_id": "", "wifi_ssid": "", "wifi_password": ""}
+
+
+def save_charger_details(server_url, charger_id, wifi_ssid, wifi_password):
+    """Save charger details to JSON file."""
+    data = {
+        "server_url": server_url, 
+        "charger_id": charger_id,
+        "wifi_ssid": wifi_ssid,
+        "wifi_password": wifi_password
+    }
+    with open(CHARGER_DETAILS_FILE, 'w') as file:
+        json.dump(data, file)
+
 
 def is_raspberry_pi():
     """Check if running on a Raspberry Pi."""
@@ -183,15 +205,48 @@ def load_charging_sessions():
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    """Handle the landing page and form submissions."""
+    # Initialize an empty message and assume form is valid initially
+    message = ""
+    form_is_valid = True
+
     if request.method == 'POST':
-        # Process form data and update configurations
-        return "Configuration updated successfully!"
-    else:
-        # Display the configuration page
-        hardware_details = load_or_generate_hardware_details()
-        charging_sessions = load_charging_sessions()
-        return render_template('index.html', hardware_details=hardware_details, charging_sessions=charging_sessions)
+        # Retrieve form data
+        ssid = request.form.get('wifi_ssid', '').strip()
+        password = request.form.get('wifi_password', '').strip()
+        server_url = request.form.get('server_url', '').strip()
+        charger_id = request.form.get('charger_id', '').strip()
+
+        # Basic validation checks
+        if not ssid or not password or not server_url or not charger_id:
+            message = "All fields are required."
+            form_is_valid = False
+        elif len(ssid) > 32:
+            message = "SSID must be 32 characters or less."
+            form_is_valid = False
+        elif len(password) < 8:
+            message = "Password must be at least 8 characters."
+            form_is_valid = False
+
+        if form_is_valid:
+            # Attempt to connect to the new Wi-Fi network
+            connection_success = connect_to_wifi(ssid, password)
+            if connection_success:
+                # Save the updated charger details including the WiFi SSID and password
+                save_charger_details(server_url, charger_id, ssid, password)
+                message = "Configuration updated successfully and connected to new Wi-Fi."
+            else:
+                # If connection fails, don't update the WiFi details in charger.json
+                charger_details = load_charger_details()
+                save_charger_details(server_url, charger_id, charger_details['wifi_ssid'], charger_details['wifi_password'])
+                message = "Failed to connect to new Wi-Fi. Charger details updated without changing Wi-Fi settings."
+
+    # Load charger details and charging sessions for rendering the page
+    charger_details = load_charger_details()
+    charging_sessions = load_charging_sessions()
+
+    return render_template('index.html', message=message, 
+                           charger_details=charger_details,
+                           charging_sessions=charging_sessions)
 
 if __name__ == '__main__':
     setup_emergency_stop_pins()
