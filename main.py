@@ -218,7 +218,8 @@ class ChargePoint(cp):
                 else:
                     self.emergency_status=0
                     for connector_id in self.connector_status.keys():
-                        self.update_connector_status(connector_id=connector_id, status='Available', error_code='NoError')
+                        if(self.connector_status[connector_id]['status']=='Faulted'):
+                            self.update_connector_status(connector_id=connector_id, status='Available', error_code='NoError')
                     logging.debug("Emergency stop switch OPEN.")
                 await asyncio.sleep(1)  # Non-blocking delay
 
