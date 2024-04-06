@@ -386,7 +386,7 @@ class ChargePoint(cp):
             logging.info(f"StatusNotification sent for connector {connector_id} with status {status_info['status']} and error_code {status_info['error_code']}")
     
     async def start_transaction(self, connector_id, id_tag):
-        logging.error(f"Start Transaction called {connector_id} {id_tag}")
+        logging.info(f"Start Transaction called {connector_id} {id_tag}")
         if connector_id not in self.active_transactions:
             meter_start = self.get_meter_value(connector_id)
             authorize_response = await self.authorize(id_tag)
