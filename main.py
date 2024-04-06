@@ -165,7 +165,9 @@ class ChargePoint(cp):
     async def emergency_stop_all_transactions(self):
         logging.info("Initiating emergency stop for all transactions.")
         for connector_id in list(self.active_transactions.keys()):
-            await self.stop_transaction(connector_id, reason='EmergencyStop')
+            # await self.stop_transaction(connector_id, reason='EmergencyStop')
+
+            await self.function_call_queue.put({"function": self.stop_transaction, "args": [connector_id, 'EmergencyStop'], "kwargs": {}})
             logging.debug(f"Transaction stopped for connector {connector_id}.")
         # Set all connectors to 'Unavailable' regardless of whether a transaction was active
         for connector_id in self.connector_status.keys():
@@ -344,7 +346,7 @@ class ChargePoint(cp):
             logging.error(f"Connector {connector_id} is already in use")
             return False
 
-    async def stop_transaction(self, connector_id, reason=None):
+    async def stop_transaction(self, connector_id, reason='Remote'):
         if connector_id in self.active_transactions:
             transaction = self.active_transactions[connector_id]
             transaction_id = transaction['transaction_id']
@@ -363,6 +365,8 @@ class ChargePoint(cp):
             
             if reason not in ['EmergencyStop', 'PowerLoss']:
                 self.update_connector_status(connector_id, status='Available', error_code='NoError')
+            else:
+
             del self.active_transactions[connector_id]
 
 
@@ -511,7 +515,7 @@ class ChargePoint(cp):
         transaction_id = kwargs.get('transaction_id')
         for connector_id, transaction in self.active_transactions.items():
             if transaction['transaction_id'] == transaction_id:
-                await self.function_call_queue.put({"function": self.stop_transaction, "args": [connector_id], "kwargs": {}})
+                await self.function_call_queue.put({"function": self.stop_transaction, "args": [connector_id, 'Remote'], "kwargs": {}})
                 return call_result.RemoteStopTransactionPayload(status='Accepted')
         return call_result.RemoteStopTransactionPayload(status='Rejected')
 
