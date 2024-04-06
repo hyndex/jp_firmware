@@ -98,13 +98,28 @@ class RelayController:
 class ChargePoint(cp):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.reset_data()
         self.initialize_csv()
         self.last_rfid_data = {"id": None, "text": ""}
         self.RFID_EXPIRY_TIME = 5  # Seconds
         self.setup_emergency_stop_pins()
         self.emergency_status=False
         self.last_sent_status_info = {}
+
+        self.meter = {}
+        self.config = load_json_config(CONFIG_FILE)
+        self.active_transactions = self.config.get("active_transactions", {})
+        relay_pins = self.config.get("RelayPins", {})
+        self.relay_controllers = {int(connector_id): RelayController(relay_pin) for connector_id, relay_pin in relay_pins.items()}
+        self.connector_status = {connector_id: {"status": "Available", "error_code": "NoError", "notification_sent": False}
+                                 for connector_id in range(1, int(self.config.get("NumberOfConnectors", 2)) + 1)}
+                                 
+        self.function_call_queue = asyncio.Queue()
+        asyncio.create_task(self.process_function_call_queue())
+        for connector_id in range(len(self.connector_status)):
+            self.relay_controllers[connector_id+1].close_relay()
+
+        self.reset_data()
+
 
         if is_raspberry_pi():
             self.pi = pigpio.pi()
@@ -233,32 +248,64 @@ class ChargePoint(cp):
         os.replace(TEMP_CSV_FILE, CSV_FILENAME)
 
     def reset_data(self):
-        self.meter = {}
+        # self.meter = {}
         self.config = load_json_config(CONFIG_FILE)
         self.active_transactions = self.config.get("active_transactions", {})
-        relay_pins = self.config.get("RelayPins", {})
-        self.relay_controllers = {int(connector_id): RelayController(relay_pin) for connector_id, relay_pin in relay_pins.items()}
-        self.connector_status = {connector_id: {"status": "Available", "error_code": "NoError", "notification_sent": False}
-                                 for connector_id in range(1, int(self.config.get("NumberOfConnectors", 2)) + 1)}
+        # relay_pins = self.config.get("RelayPins", {})
+        # self.relay_controllers = {int(connector_id): RelayController(relay_pin) for connector_id, relay_pin in relay_pins.items()}
+        # self.connector_status = {connector_id: {"status": "Available", "error_code": "NoError", "notification_sent": False}
+        #                          for connector_id in range(1, int(self.config.get("NumberOfConnectors", 2)) + 1)}
         self.function_call_queue = asyncio.Queue()
         asyncio.create_task(self.process_function_call_queue())
-        for connector_id in range(len(self.connector_status)):
-            self.relay_controllers[connector_id+1].close_relay()
+        # for connector_id in range(len(self.connector_status)):
+        #     self.relay_controllers[connector_id+1].close_relay()
 
     def save_config(self):
         with open(CONFIG_FILE, 'w') as file:
             json.dump(self.config, file)
 
+    # def update_connector_status(self, connector_id, status=None, error_code=None):
+    #     if status is not None:
+    #         self.connector_status[connector_id]['status'] = status
+    #     if error_code is not None:
+    #         self.connector_status[connector_id]['error_code'] = error_code
+    #     # Set notification_sent to False only if the status or error_code has changed
+    #     if self.connector_status[connector_id].get('status') != self.last_sent_status_info.get(connector_id, {}).get('status') or \
+    #        self.connector_status[connector_id].get('error_code') != self.last_sent_status_info.get(connector_id, {}).get('error_code'):
+    #         self.connector_status[connector_id]['notification_sent'] = False
+    #     asyncio.create_task(self.send_status_notification(connector_id))
+
     def update_connector_status(self, connector_id, status=None, error_code=None):
-        if status is not None:
+        status_changed = False
+        if status is not None and self.connector_status[connector_id]['status'] != status:
             self.connector_status[connector_id]['status'] = status
-        if error_code is not None:
+            status_changed = True
+
+        if error_code is not None and self.connector_status[connector_id]['error_code'] != error_code:
             self.connector_status[connector_id]['error_code'] = error_code
-        # Set notification_sent to False only if the status or error_code has changed
-        if self.connector_status[connector_id].get('status') != self.last_sent_status_info.get(connector_id, {}).get('status') or \
-           self.connector_status[connector_id].get('error_code') != self.last_sent_status_info.get(connector_id, {}).get('error_code'):
+            status_changed = True
+
+        # Only mark for notification if there's a change
+        if status_changed:
             self.connector_status[connector_id]['notification_sent'] = False
-        asyncio.create_task(self.send_status_notification(connector_id))
+            asyncio.create_task(self.send_status_notification(connector_id))
+        else:
+            logging.info(f"No change in status for connector {connector_id}, skipping notification.")
+
+    # async def process_function_call_queue(self):
+    #     while True:
+    #         function_call = await self.function_call_queue.get()
+    #         logging.info(f"Processing function call: {function_call['function'].__name__}")
+    #         try:
+    #             if asyncio.iscoroutinefunction(function_call["function"]):
+    #                 asyncio.create_task(function_call["function"](*function_call["args"], **function_call["kwargs"]))
+    #             else:
+    #                 loop = asyncio.get_event_loop()
+    #                 loop.run_in_executor(None, function_call["function"], *function_call["args"], **function_call["kwargs"])
+    #         except Exception as e:
+    #             logging.error(f"Error processing function call: {e}")
+    #         finally:
+    #             self.function_call_queue.task_done()
 
     async def process_function_call_queue(self):
         while True:
@@ -266,14 +313,18 @@ class ChargePoint(cp):
             logging.info(f"Processing function call: {function_call['function'].__name__}")
             try:
                 if asyncio.iscoroutinefunction(function_call["function"]):
-                    asyncio.create_task(function_call["function"](*function_call["args"], **function_call["kwargs"]))
+                    # Use create_task to ensure the coroutine is scheduled for execution
+                    task = asyncio.create_task(function_call["function"](*function_call["args"], **function_call["kwargs"]))
+                    await task  # Wait for the task to complete to handle exceptions properly
                 else:
+                    # For non-coroutine functions, run in executor
                     loop = asyncio.get_event_loop()
-                    loop.run_in_executor(None, function_call["function"], *function_call["args"], **function_call["kwargs"])
+                    await loop.run_in_executor(None, function_call["function"], *function_call["args"], **function_call["kwargs"])
             except Exception as e:
                 logging.error(f"Error processing function call: {e}")
             finally:
                 self.function_call_queue.task_done()
+
 
     async def send_boot_notification(self, retries=0):
         max_retries = int(self.config.get("MaxBootNotificationRetries", 5))
@@ -316,6 +367,13 @@ class ChargePoint(cp):
         response = await self.call(request)
         return response.id_tag_info['status'] == AuthorizationStatus.accepted
 
+    async def send_status_notifications_loop(self):
+        while True:
+            for connector_id, status_info in self.connector_status.items():
+                if not status_info['notification_sent']:
+                    await self.send_status_notification(connector_id)
+            await asyncio.sleep(1)
+
     async def send_status_notification(self, connector_id):
         status_info = self.connector_status[connector_id]
         # Proceed only if a notification hasn't been sent for the current status and error_code
@@ -328,19 +386,7 @@ class ChargePoint(cp):
             # Update last sent status info to current for comparison in future updates
             self.last_sent_status_info[connector_id] = {'status': status_info['status'], 'error_code': status_info['error_code']}
             logging.info(f"StatusNotification sent for connector {connector_id} with status {status_info['status']} and error_code {status_info['error_code']}")
-
-
-    async def send_status_notification(self, connector_id):
-        status_info = self.connector_status[connector_id]
-        request = call.StatusNotificationPayload(connector_id=connector_id, status=status_info['status'], error_code=status_info['error_code'])
-        await self.call(request)
-
-        if(status_info['status']!='Charging'):
-            await self.update_specific_lcd_line(connector_id, f'{status_info["status"]} {status_info["error_code"]}')
-
-        status_info['notification_sent'] = True
-        logging.info(f"StatusNotification sent for connector {connector_id} with status {status_info['status']} and error code {status_info['error_code']}")
-
+    
     async def start_transaction(self, connector_id, id_tag):
         if connector_id not in self.active_transactions:
             meter_start = self.get_meter_value(connector_id)
@@ -435,6 +481,7 @@ class ChargePoint(cp):
             await self.function_call_queue.put({"function": self.heartbeat, "args": [], "kwargs": {}})
             status = TriggerMessageStatus.accepted
         elif requested_message == MessageTrigger.status_notification:
+            self.last_sent_status_info = {}
             connector_id = connector_id if connector_id is not None else 1
             await self.function_call_queue.put({"function": self.send_status_notification, "args": [connector_id], "kwargs": {}})
             status = TriggerMessageStatus.accepted
