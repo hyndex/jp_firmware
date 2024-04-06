@@ -212,6 +212,8 @@ class ChargePoint(cp):
                         self.update_connector_status(connector_id=connector_id, status='Faulted', error_code='OtherError')
                         logging.debug(f"Connector status updated to Unavailable for connector {connector_id}.")
                     await self.emergency_stop_all_transactions()
+                elif self.pi.read(EMERGENCY_STOP_PIN2) == 1:  
+                    pass 
                 else:
                     self.emergency_status=0
                     for connector_id in self.connector_status.keys():
