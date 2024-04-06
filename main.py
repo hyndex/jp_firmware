@@ -171,7 +171,7 @@ class ChargePoint(cp):
             logging.debug(f"Transaction stopped for connector {connector_id}.")
         # Set all connectors to 'Unavailable' regardless of whether a transaction was active
         for connector_id in self.connector_status.keys():
-            self.update_connector_status(connector_id=connector_id, status='Unavailable', error_code='EmergencyStop')
+            self.update_connector_status(connector_id=connector_id, status='Faulted', error_code='OtherError')
             asyncio.create_task(self.send_status_notification(connector_id))
             logging.debug(f"Connector status updated to Unavailable for connector {connector_id}.")
         logging.info("Emergency stop triggered for all transactions and connectors set to Unavailable.")
