@@ -218,9 +218,12 @@ class ChargePoint(cp):
                 else:
                     self.emergency_status=0
                     for connector_id in self.connector_status.keys():
-                        if(self.connector_status[connector_id]['status']=='Faulted'):
-                            self.update_connector_status(connector_id=connector_id, status='Available', error_code='NoError')
+                        self.update_connector_status(connector_id=connector_id, status='Available', error_code='NoError')
                     logging.debug("Emergency stop switch OPEN.")
+                    # for connector_id in self.connector_status.keys():
+                    #     if(self.connector_status[connector_id]['status']=='Faulted'):
+                    #         self.update_connector_status(connector_id=connector_id, status='Available', error_code='NoError')
+                    # logging.debug("Emergency stop switch OPEN.")
                 await asyncio.sleep(1)  # Non-blocking delay
 
 
@@ -393,6 +396,7 @@ class ChargePoint(cp):
             logging.info(f"StatusNotification sent for connector {connector_id} with status {status_info['status']} and error_code {status_info['error_code']}")
     
     async def start_transaction(self, connector_id, id_tag):
+        logging.error(f"Start Transaction called {connector_id} {id_tag}")
         if connector_id not in self.active_transactions:
             meter_start = self.get_meter_value(connector_id)
             authorize_response = await self.authorize(id_tag)
@@ -572,6 +576,7 @@ class ChargePoint(cp):
         if connector_id in self.active_transactions:
             logging.info(f"Connector {connector_id} is already in use.")
             return call_result.RemoteStartTransactionPayload(status='Rejected')
+        logging.info(f"Start Transaction Called {connector_id}")
         await self.function_call_queue.put({"function": self.start_transaction, "args": [connector_id, id_tag], "kwargs": {}})
         return call_result.RemoteStartTransactionPayload(status='Accepted')
 
