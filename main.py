@@ -216,14 +216,14 @@ class ChargePoint(cp):
                 elif self.pi.read(EMERGENCY_STOP_PIN2) == 1:  
                     pass 
                 else:
-                    self.emergency_status=0
-                    for connector_id in self.connector_status.keys():
-                        self.update_connector_status(connector_id=connector_id, status='Available', error_code='NoError')
-                    logging.debug("Emergency stop switch OPEN.")
+                    # self.emergency_status=0
                     # for connector_id in self.connector_status.keys():
-                    #     if(self.connector_status[connector_id]['status']=='Faulted'):
-                    #         self.update_connector_status(connector_id=connector_id, status='Available', error_code='NoError')
+                    #     self.update_connector_status(connector_id=connector_id, status='Available', error_code='NoError')
                     # logging.debug("Emergency stop switch OPEN.")
+                    for connector_id in self.connector_status.keys():
+                        if(self.connector_status[connector_id]['status']=='Faulted'):
+                            self.update_connector_status(connector_id=connector_id, status='Available', error_code='NoError')
+                    logging.debug("Emergency stop switch OPEN.")
                 await asyncio.sleep(1)  # Non-blocking delay
 
 
@@ -263,8 +263,8 @@ class ChargePoint(cp):
         # self.relay_controllers = {int(connector_id): RelayController(relay_pin) for connector_id, relay_pin in relay_pins.items()}
         # self.connector_status = {connector_id: {"status": "Available", "error_code": "NoError", "notification_sent": False}
         #                          for connector_id in range(1, int(self.config.get("NumberOfConnectors", 2)) + 1)}
-        self.function_call_queue = asyncio.Queue()
-        asyncio.create_task(self.process_function_call_queue())
+        # self.function_call_queue = asyncio.Queue()
+        # asyncio.create_task(self.process_function_call_queue())
         # for connector_id in range(len(self.connector_status)):
         #     self.relay_controllers[connector_id+1].close_relay()
 
@@ -272,16 +272,6 @@ class ChargePoint(cp):
         with open(CONFIG_FILE, 'w') as file:
             json.dump(self.config, file)
 
-    # def update_connector_status(self, connector_id, status=None, error_code=None):
-    #     if status is not None:
-    #         self.connector_status[connector_id]['status'] = status
-    #     if error_code is not None:
-    #         self.connector_status[connector_id]['error_code'] = error_code
-    #     # Set notification_sent to False only if the status or error_code has changed
-    #     if self.connector_status[connector_id].get('status') != self.last_sent_status_info.get(connector_id, {}).get('status') or \
-    #        self.connector_status[connector_id].get('error_code') != self.last_sent_status_info.get(connector_id, {}).get('error_code'):
-    #         self.connector_status[connector_id]['notification_sent'] = False
-    #     asyncio.create_task(self.send_status_notification(connector_id))
 
     def update_connector_status(self, connector_id, status=None, error_code=None):
         status_changed = False
