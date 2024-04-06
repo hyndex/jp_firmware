@@ -158,3 +158,4 @@ Lastly, ensure you comply with all relevant security practices, especially when 
 
 
 chmod +x setup.sh
+sudo PM2_HOME=/root/.pm2 pm2 list
