@@ -402,7 +402,7 @@ class SimpleMFRC522:
   KEY = [0xFF,0xFF,0xFF,0xFF,0xFF,0xFF]
   BLOCK_ADDRS = [8, 9, 10]
   
-  def __init__(self):
+  def __init__(self,pi=None):
     self.READER = MFRC522(pi=pi)
   
   def read(self):
