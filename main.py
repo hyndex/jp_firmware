@@ -290,38 +290,38 @@ class ChargePoint(cp):
         else:
             logging.info(f"No change in status for connector {connector_id}, skipping notification.")
 
-    # async def process_function_call_queue(self):
-    #     while True:
-    #         function_call = await self.function_call_queue.get()
-    #         logging.info(f"Processing function call: {function_call['function'].__name__}")
-    #         try:
-    #             if asyncio.iscoroutinefunction(function_call["function"]):
-    #                 asyncio.create_task(function_call["function"](*function_call["args"], **function_call["kwargs"]))
-    #             else:
-    #                 loop = asyncio.get_event_loop()
-    #                 loop.run_in_executor(None, function_call["function"], *function_call["args"], **function_call["kwargs"])
-    #         except Exception as e:
-    #             logging.error(f"Error processing function call: {e}")
-    #         finally:
-    #             self.function_call_queue.task_done()
-
     async def process_function_call_queue(self):
         while True:
             function_call = await self.function_call_queue.get()
             logging.info(f"Processing function call: {function_call['function'].__name__}")
             try:
                 if asyncio.iscoroutinefunction(function_call["function"]):
-                    # Use create_task to ensure the coroutine is scheduled for execution
-                    task = asyncio.create_task(function_call["function"](*function_call["args"], **function_call["kwargs"]))
-                    await task  # Wait for the task to complete to handle exceptions properly
+                    asyncio.create_task(function_call["function"](*function_call["args"], **function_call["kwargs"]))
                 else:
-                    # For non-coroutine functions, run in executor
                     loop = asyncio.get_event_loop()
-                    await loop.run_in_executor(None, function_call["function"], *function_call["args"], **function_call["kwargs"])
+                    loop.run_in_executor(None, function_call["function"], *function_call["args"], **function_call["kwargs"])
             except Exception as e:
                 logging.error(f"Error processing function call: {e}")
             finally:
                 self.function_call_queue.task_done()
+
+    # async def process_function_call_queue(self):
+    #     while True:
+    #         function_call = await self.function_call_queue.get()
+    #         logging.info(f"Processing function call: {function_call['function'].__name__}")
+    #         try:
+    #             if asyncio.iscoroutinefunction(function_call["function"]):
+    #                 # Use create_task to ensure the coroutine is scheduled for execution
+    #                 task = asyncio.create_task(function_call["function"](*function_call["args"], **function_call["kwargs"]))
+    #                 await task  # Wait for the task to complete to handle exceptions properly
+    #             else:
+    #                 # For non-coroutine functions, run in executor
+    #                 loop = asyncio.get_event_loop()
+    #                 await loop.run_in_executor(None, function_call["function"], *function_call["args"], **function_call["kwargs"])
+    #         except Exception as e:
+    #             logging.error(f"Error processing function call: {e}")
+    #         finally:
+    #             self.function_call_queue.task_done()
 
 
     async def send_boot_notification(self, retries=0):
