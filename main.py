@@ -365,8 +365,6 @@ class ChargePoint(cp):
             
             if reason not in ['EmergencyStop', 'PowerLoss']:
                 self.update_connector_status(connector_id, status='Available', error_code='NoError')
-            else:
-
             del self.active_transactions[connector_id]
 
 
