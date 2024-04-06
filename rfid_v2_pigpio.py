@@ -1,9 +1,6 @@
-from mfrc522 import SimpleMFRC522
+from MFRC522 import SimpleMFRC522  # Assuming SimpleMFRC522 is the module name
 import json
 import time
-
-# Create an object of the class MFRC522
-reader = SimpleMFRC522()
 
 RFID_FILE_PATH = "/dev/shm/rfid.json"
 RFID_EXPIRY_TIME = 5  # in seconds
@@ -30,10 +27,11 @@ try:
     # Create the RFID file if it doesn't exist
     open(RFID_FILE_PATH, "a").close()
 
+    reader = SimpleMFRC522()  # Create an object of the class MFRC522
+
     while True:
         print("Hold a tag near the reader")
-        # This will run indefinitely, waiting for a tag to be close enough to the reader
-        id, text = reader.read()  # When a tag is read, the id and text from it are returned
+        id, text = reader.read()  # This will run indefinitely, waiting for a tag
         print(f"ID: {id}")
         print(f"Text: {text}")
 
@@ -43,13 +41,14 @@ try:
 
         current_time = time.time()
 
-        # Check if the data is different from the last one and the time has expired
-        if (text != last_data or id != last_data['id'] or current_time - last_write_time >= RFID_EXPIRY_TIME):
+        # Check if the data is different from the last one or the time has expired
+        if text != last_data or (last_data and id != last_data['id']) or current_time - last_write_time >= RFID_EXPIRY_TIME:
             # Write the RFID data to /dev/shm/rfid.json
             write_to_file({"id": id, "text": text})
             last_write_time = current_time
             last_data = {"id": id, "text": text}
 
 except KeyboardInterrupt:
-    # If the user presses CTRL+C, cleanup and stop
+    # If the user presses CTRL+C, print exiting message
     print("Exiting...")
+    # No GPIO.cleanup() needed here as pigpio cleanup is handled internally

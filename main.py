@@ -10,6 +10,7 @@ import threading
 from datetime import datetime
 import time
 from lcd_display_20_4 import update_lcd_line
+from MFRC522 import SimpleMFRC522
 
 import aioserial
 import requests
@@ -71,7 +72,9 @@ class RelayController:
     def __init__(self, relay_pin):
         self.relay_pin = relay_pin
         self.relay_state = 0  # 0: Off, 1: On
-        self.last_rfid_read = None
+        self.last_rfid_read = {"id": None, "text": ""}
+        self.RFID_EXPIRY_TIME = 5  # Seconds to consider the RFID tag as new
+
         if is_raspberry_pi():
             self.pi = pigpio.pi()
             if not self.pi.connected:
@@ -97,6 +100,8 @@ class ChargePoint(cp):
         super().__init__(*args, **kwargs)
         self.reset_data()
         self.initialize_csv()
+        self.last_rfid_data = {"id": None, "text": ""}
+        self.RFID_EXPIRY_TIME = 5  # Seconds
 
         if is_raspberry_pi():
             self.pi = pigpio.pi()
@@ -114,51 +119,37 @@ class ChargePoint(cp):
         update_lcd_line(line_number, message)
 
 
-    async def start_transaction_with_rfid(self):
-        logging.info('RFID Started')
-        last_rfid_read = None  # Initialize last_rfid_read to None
-        try:
-            while True:
-                # Try reading the RFID data from the file
-                try:
-                    if os.path.exists("/dev/shm/rfid.json"):
-                        with open("/dev/shm/rfid.json", "r") as file:
-                            rfid_data = json.load(file)
-                            rfid_id = str(rfid_data.get("id"))
-                            rfid_text = str(rfid_data.get("text"))
-                    else:
-                        logging.info("RFID file not found. Waiting for RFID tag...")
-                        await asyncio.sleep(1)
-                        continue
-                except Exception as e:
-                    logging.error(f"Error reading RFID data from file: {e}")
-                    await asyncio.sleep(1)
-                    continue
+    async def monitor_and_process_rfid(self):
+        """Monitors for RFID tags and processes them."""
+        reader = SimpleMFRC522()
+        last_write_time = time.time()
 
-                # Check if the file was read successfully and if a new RFID tag is detected
-                if rfid_id and rfid_id != last_rfid_read:
-                    logging.info(f"New RFID tag detected: ID {rfid_id}, Text: {rfid_text}")
-                    # Loop through all connectors
-                    for connector_id, status_info in self.connector_status.items():
-                        # Check if the connector is available for a transaction
-                        if status_info['status'] == 'Available':
-                            # Put the start_transaction call into the function call queue
-                            await self.function_call_queue.put({
-                                "function": self.start_transaction,
-                                "args": [connector_id, rfid_id],
-                                "kwargs": {}
-                            })
-                    # Update the last RFID read
-                    last_rfid_read = rfid_id
-                else:
-                    logging.info("No new RFID tag detected or the same RFID tag is still present.")
+        while True:
+            try:
+                id, text = reader.read_no_block()
+                if id:
+                    text = text.strip("\x00") if text else ""
+                    current_time = time.time()
 
-                # Debounce delay
-                await asyncio.sleep(1)
+                    # Compare new read with last saved RFID data
+                    if id != self.last_rfid_read["id"] or text != self.last_rfid_read["text"] or (current_time - last_write_time >= self.RFID_EXPIRY_TIME):
+                        self.last_rfid_read = {"id": str(id), "text": text}
+                        logging.info(f"New RFID data: ID {id}, Text: {text}")
 
-        except Exception as e:
-            logging.error(f"Unexpected error in RFID read loop: {e}")
+                        # Loop through all connectors and initiate transactions if the connector is available
+                        for connector_id, status_info in self.connector_status.items():
+                            if status_info['status'] == 'Available':
+                                await self.function_call_queue.put({
+                                    "function": self.start_transaction,
+                                    "args": [connector_id, str(id)],
+                                    "kwargs": {}
+                                })
 
+                    last_write_time = current_time
+
+                await asyncio.sleep(1)  # Non-blocking wait before checking for RFID tag again
+            except Exception as e:
+                logging.error(f"Error in RFID monitoring loop: {e}")
 
     async def emergency_stop_all_transactions(self):
         for connector_id in list(self.active_transactions.keys()):
