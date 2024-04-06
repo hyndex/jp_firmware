@@ -209,8 +209,7 @@ class ChargePoint(cp):
                     self.emergency_status=1
                     logging.info("Emergency stop switch CLOSED. Triggering emergency stop.")
                     for connector_id in self.connector_status.keys():
-                        if self.emergency_status==0:
-                            self.update_connector_status(connector_id=connector_id, status='Faulted', error_code='OtherError')
+                        self.update_connector_status(connector_id=connector_id, status='Faulted', error_code='OtherError')
                         logging.debug(f"Connector status updated to Unavailable for connector {connector_id}.")
                     await self.emergency_stop_all_transactions()
                 else:
