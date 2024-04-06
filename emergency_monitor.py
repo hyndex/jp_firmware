@@ -3,15 +3,14 @@ import logging
 import time
 
 # GPIO Pins for Emergency Stop Condition
-EMERGENCY_STOP_PIN1 = 5  # Example GPIO pin number for the first emergency stop switch
-EMERGENCY_STOP_PIN2 = 6  # Example GPIO pin number for the second emergency stop switch
+EMERGENCY_STOP_PIN1 = 5  # Set as output
+EMERGENCY_STOP_PIN2 = 6  # Set as input
 
 # Logging configuration
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class EmergencyStopMonitor:
-    def __init__(self, stop_pins):
-        self.stop_pins = stop_pins
+    def __init__(self):
         self.pi = pigpio.pi()
         if not self.pi.connected:
             logging.error("pigpio daemon is not running. Emergency stop monitor cannot start.")
@@ -20,23 +19,26 @@ class EmergencyStopMonitor:
         self.setup_pins()
 
     def setup_pins(self):
-        for pin in self.stop_pins:
-            self.pi.set_mode(pin, pigpio.INPUT)
-            self.pi.set_pull_up_down(pin, pigpio.PUD_DOWN)
-            # Removed the glitch filter and callback since we are polling
+        # Set PIN1 as output, initially LOW
+        self.pi.set_mode(EMERGENCY_STOP_PIN1, pigpio.OUTPUT)
+        self.pi.write(EMERGENCY_STOP_PIN1, 0)  # Send LOW signal
+
+        # Set PIN2 as input with pull-up (expecting to be pulled low by pressing the switch)
+        self.pi.set_mode(EMERGENCY_STOP_PIN2, pigpio.INPUT)
+        self.pi.set_pull_up_down(EMERGENCY_STOP_PIN2, pigpio.PUD_UP)
 
     def read_pins(self):
         while True:
-            for pin in self.stop_pins:
-                if self.pi.read(pin):
-                    print("ON")
-                else:
-                    print("OFF")
+            # Read PIN2 to see if it's LOW (indicating the switch is closed and connecting PIN1 to PIN2)
+            if self.pi.read(EMERGENCY_STOP_PIN2) == 0:
+                print("Switch CLOSED")
+            else:
+                print("Switch OPEN")
             time.sleep(0.1)
 
 def main():
     logging.info("Starting emergency stop monitor")
-    monitor = EmergencyStopMonitor([EMERGENCY_STOP_PIN1, EMERGENCY_STOP_PIN2])
+    monitor = EmergencyStopMonitor()
     monitor.read_pins()
 
 if __name__ == "__main__":
