@@ -107,7 +107,7 @@ class ChargePoint(cp):
         self.initialize_csv()
         self.last_rfid_data = {"id": None, "text": ""}
         self.RFID_EXPIRY_TIME = 5  # Seconds
-        self.emergency_status=False
+        self.emergency_status=0
         self.last_sent_status_info = {}
 
         self.meter = {}
