@@ -43,7 +43,7 @@ sudo npm install -g pm2
 
 # Start the main.py script with PM2
 echo "Starting the main.py script with PM2..."
-pm2 start ./venv/bin/python --name "main" -- main.py
+# pm2 start ./venv/bin/python --name "main" -- main.py
 pm2 start ./venv/bin/python --name "webserver" -- webserver.py
 
 # Set up PM2 to start at boot
