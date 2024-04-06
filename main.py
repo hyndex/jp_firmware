@@ -600,7 +600,7 @@ class ChargePoint(cp):
     async def read_serial_data(self):
         if not is_raspberry_pi():
             logging.info('Simulating meter readings [Device is not recognised as PI]')
-            sleep_interval = 10
+            sleep_interval = 1
             try:
                 while True:
                     for key in range(1, int(self.config.get("NumberOfConnectors", 2)) + 1):
@@ -623,12 +623,13 @@ class ChargePoint(cp):
                             line = await ser.readline_async()
                             line = line.decode('utf-8').strip()
                             if line:
-                                logging.info(line)
+                                # logging.info(line)
                                 temp = self.parse_metervalues(line)
                                 for key, values in temp.items():
                                     if key in self.meter:
                                         self.meter[key]['energy'] += (values['power']) * (sleep_interval / 3600)
                                     self.meter[key] = values
+                                    print(self.meter[key])
                         await asyncio.sleep(sleep_interval)
                 except asyncio.CancelledError:
                     logging.info("Serial reading cancelled.")
@@ -656,60 +657,6 @@ class ChargePoint(cp):
         except subprocess.CalledProcessError:
             os.rename(BACKUP_FIRMWARE_FILE, FIRMWARE_FILE)
             subprocess.run(['python3', FIRMWARE_FILE])
-
-# # Main function
-# async def main():
-#     charger_config = load_json_config(CHARGER_CONFIG_FILE)
-#     server_url = charger_config['server_url']
-#     charger_id = charger_config['charger_id']
-#     async with websockets.connect(f"{server_url}/{charger_id}", subprotocols=["ocpp1.6j"]) as ws:
-#         cp_instance = ChargePoint(charger_id, ws)
-#         await asyncio.gather(cp_instance.start(), cp_instance.send_boot_notification(), cp_instance.heartbeat(), cp_instance.send_periodic_meter_values(), cp_instance.send_status_notifications_loop(), cp_instance.read_serial_data(), cp_instance.async_monitor_emergency_stop_pins())
-
-# if __name__ == "__main__":
-#     asyncio.run(main())
-
-
-# async def main():
-#     charger_config = load_json_config(CHARGER_CONFIG_FILE)
-#     server_url = charger_config['server_url']
-#     charger_id = charger_config['charger_id']
-
-#     reconnection_delay = charger_config.get('reconnection_delay', 10)  # Reconnection delay in seconds
-
-#     while True:
-#         try:
-#             # Try to connect to the server
-#             async with websockets.connect(f"{server_url}/{charger_id}", subprotocols=["ocpp1.6j"]) as ws:
-#                 cp_instance = ChargePoint(charger_id, ws)
-#                 update_lcd_line(4, "Joulepoint, Online")
-#                 await asyncio.gather(
-#                     cp_instance.start(),
-#                     cp_instance.send_boot_notification(),
-#                     cp_instance.heartbeat(),
-#                     cp_instance.send_periodic_meter_values(),
-#                     cp_instance.send_status_notifications_loop(),
-#                     cp_instance.read_serial_data(),
-#                     cp_instance.async_monitor_emergency_stop_pins(),
-#                     cp_instance.start_transaction_with_rfid()
-#                 )
-#         except (websockets.exceptions.WebSocketException, ConnectionRefusedError, ConnectionResetError) as e:
-#             # Connection failed, log the error and wait before retrying
-#             logging.error(f"Connection to server failed: {e}. Retrying in {reconnection_delay} seconds...")
-#             update_lcd_line(4, "Server Disconnected. Retrying...")
-#             await asyncio.sleep(reconnection_delay)
-#         except KeyboardInterrupt:
-#             # Program interrupted by user, break the loop and exit
-#             break
-
-# if __name__ == "__main__":
-#     try:
-#         asyncio.run(main())
-#     except KeyboardInterrupt:
-#         # Handle any cleanup here if necessary
-#         logging.info("Application stopped by the user.")
-
-
 
 async def main():
     charger_config = load_json_config(CHARGER_CONFIG_FILE)
