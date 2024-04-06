@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Update system packages
+echo "Updating system packages..."
+sudo apt-get update
+
 # Install Node.js and npm
 echo "Installing Node.js and npm..."
 curl -sL https://deb.nodesource.com/setup_20.x | sudo -E bash -
@@ -20,7 +24,7 @@ sudo apt-get install -y git
 
 # Clone the repository
 echo "Cloning the repository..."
-git clone git@github.com:hyndex/jp_firmware.git
+git clone https://github.com/hyndex/jp_firmware.git
 cd jp_firmware
 
 # Set up a virtual environment
@@ -53,6 +57,31 @@ pm2 save
 # Enable serial interface
 echo "Enabling serial interface..."
 sudo sed -i 's/^#enable_uart=1/enable_uart=1/' /boot/config.txt
-sudo sed -i 's/console=serial0,115200 //' /boot/cmdline.txt
+sudo sed -i '/console=serial0,115200/d' /boot/cmdline.txt
+
+# Install and configure NetworkManager
+echo "Installing NetworkManager..."
+sudo apt-get install -y network-manager
+
+echo "Stopping and disabling systemd-networkd and wpa_supplicant..."
+sudo systemctl stop systemd-networkd wpa_supplicant
+sudo systemctl disable systemd-networkd wpa_supplicant
+
+echo "Enabling and starting NetworkManager..."
+sudo systemctl enable NetworkManager
+sudo systemctl start NetworkManager
+
+# Connect to specified WiFi network
+echo "Connecting to WiFi network 'Joulepoint-Charger-Wifi'..."
+nmcli dev wifi connect 'Joulepoint-Charger-Wifi' password 'Hello'
+
+# Enable SPI and I2C interfaces
+echo "Enabling SPI and I2C interfaces..."
+sudo raspi-config nonint do_spi 0
+sudo raspi-config nonint do_i2c 0
+
+# Install i2c-tools (optional, for I2C device management and testing)
+echo "Installing i2c-tools..."
+sudo apt-get install -y i2c-tools
 
 echo "Setup completed successfully!"

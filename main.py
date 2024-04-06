@@ -256,17 +256,8 @@ class ChargePoint(cp):
         os.replace(TEMP_CSV_FILE, CSV_FILENAME)
 
     def reset_data(self):
-        # self.meter = {}
         self.config = load_json_config(CONFIG_FILE)
         self.active_transactions = self.config.get("active_transactions", {})
-        # relay_pins = self.config.get("RelayPins", {})
-        # self.relay_controllers = {int(connector_id): RelayController(relay_pin) for connector_id, relay_pin in relay_pins.items()}
-        # self.connector_status = {connector_id: {"status": "Available", "error_code": "NoError", "notification_sent": False}
-        #                          for connector_id in range(1, int(self.config.get("NumberOfConnectors", 2)) + 1)}
-        # self.function_call_queue = asyncio.Queue()
-        # asyncio.create_task(self.process_function_call_queue())
-        # for connector_id in range(len(self.connector_status)):
-        #     self.relay_controllers[connector_id+1].close_relay()
 
     def save_config(self):
         with open(CONFIG_FILE, 'w') as file:
