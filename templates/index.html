@@ -16,6 +16,23 @@
 
 <body>
     <div class="container">
+
+        <div class="mt-5">
+            <h2>Available Wi-Fi Networks</h2>
+            <ul id="wifiNetworksList"></ul>
+            <form id="connectWifiForm">
+                <div class="form-group">
+                    <label for="wifiSSID">Select Wi-Fi:</label>
+                    <select id="wifiSSID" class="form-control" name="ssid" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="wifiPassword">Password:</label>
+                    <input type="password" class="form-control" id="wifiPassword" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Test Connection</button>
+            </form>
+        </div>
+        
         <h2>Configure Charger Settings</h2>
         <form method="post">
             <div class="form-group">
@@ -70,6 +87,44 @@
 
     <!-- Bootstrap JS -->
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            function fetchWifiNetworks() {
+                fetch('/wifi_networks')
+                    .then(response => response.json())
+                    .then(data => {
+                        const select = document.getElementById('wifiSSID');
+                        select.innerHTML = '';
+                        data.forEach(ssid => {
+                            const option = document.createElement('option');
+                            option.value = option.textContent = ssid;
+                            select.appendChild(option);
+                        });
+                    });
+            }
+        
+            document.getElementById('connectWifiForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const ssid = document.getElementById('wifiSSID').value;
+                const password = document.getElementById('wifiPassword').value;
+                
+                fetch('/connect_wifi', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `ssid=${encodeURIComponent(ssid)}&password=${encodeURIComponent(password)}`,
+                })
+                .then(response => response.json())
+                .then(data => alert(data.message))
+                .catch(error => alert('Error: ' + error));
+            });
+        
+            fetchWifiNetworks();
+        });
+        </script>
+        
 </body>
 
 </html>

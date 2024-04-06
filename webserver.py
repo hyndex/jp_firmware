@@ -10,6 +10,7 @@ import time
 import platform
 import threading
 from datetime import datetime, timedelta
+from flask import Flask, request, render_template, jsonify
 
 if platform.system() == 'Linux' and os.path.exists('/proc/device-tree/model'):
     import pigpio
@@ -32,6 +33,24 @@ def is_raspberry_pi():
         except FileNotFoundError:
             return False
     return False
+
+def get_current_ssid():
+    """Retrieve the SSID of the currently connected Wi-Fi network."""
+    try:
+        ssid = subprocess.check_output("iwgetid -r", shell=True).decode().strip()
+        return ssid
+    except subprocess.CalledProcessError:
+        return None
+
+def connect_to_wifi(ssid, password):
+    """Connect to a Wi-Fi network."""
+    try:
+        subprocess.check_call(['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password], timeout=30)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
 
 if is_raspberry_pi():
     pi = pigpio.pi()
@@ -73,6 +92,38 @@ def check_internet_connection():
         return True
     except OSError:
         return False
+
+@app.route('/wifi_networks', methods=['GET'])
+def wifi_networks():
+    """Endpoint to list available Wi-Fi networks."""
+    try:
+        networks = subprocess.check_output(['nmcli', '-t', '-f', 'SSID', 'device', 'wifi', 'list']).decode('utf-8').split('\n')
+        networks = [net.strip() for net in networks if net]  # Remove empty entries
+        return jsonify(networks)
+    except subprocess.CalledProcessError:
+        return jsonify([]), 500
+
+@app.route('/connect_wifi', methods=['POST'])
+def connect_wifi():
+    new_ssid = request.form.get('ssid')
+    password = request.form.get('password')
+    original_ssid = get_current_ssid()
+
+    if connect_to_wifi(new_ssid, password):
+        # Wait for a moment to verify connectivity
+        time.sleep(10)
+        if check_internet_connection():
+            return jsonify({"success": True, "message": f"Connected successfully to {new_ssid}."})
+        else:
+            # Attempt to rollback
+            if original_ssid and connect_to_wifi(original_ssid, ""):
+                return jsonify({"success": False, "message": "Failed to connect to new network. Rolled back to the original network."})
+            else:
+                return jsonify({"success": False, "message": "Failed to connect to new network and failed to rollback."})
+    else:
+        return jsonify({"success": False, "message": "Failed to initiate connection to new network."})
+
+
 
 def check_pm2_status():
     """Check if pm2 process manager is running."""

@@ -86,6 +86,18 @@ curl -fsSL https://tailscale.com/install.sh | sh
 
 # Connect to specified WiFi network
 echo "Connecting to WiFi network 'Joulepoint-Charger-Wifi'..."
-nmcli dev wifi connect 'Joulepoint-Charger-Wifi' password 'Hello'
+nmcli dev wifi connect 'Joulepoint-Charger-Wifi' password '1qaz2wsx'
+
+# Install dnsmasq for DNS
+echo "Installing dnsmasq for DNS management..."
+sudo apt-get install -y dnsmasq
+
+# Configure dnsmasq to resolve jp.local to the Raspberry Pi's IP address in the hotspot network
+echo "Configuring dnsmasq for jp.local resolution..."
+echo "address=/jp.local/192.168.4.1" | sudo tee -a /etc/dnsmasq.conf
+
+# Restart dnsmasq to apply the changes
+echo "Restarting dnsmasq to apply configurations..."
+sudo systemctl restart dnsmasq
 
 echo "Setup completed successfully!"
