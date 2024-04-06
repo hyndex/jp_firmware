@@ -155,3 +155,6 @@ Before moving to production, thoroughly test your application under various cond
 Consider implementing monitoring and alerting to quickly detect and respond to issues once in production.
 
 Lastly, ensure you comply with all relevant security practices, especially when dealing with network communications and executing system commands.
+
+
+chmod +x setup.sh

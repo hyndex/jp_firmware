@@ -72,9 +72,6 @@ echo "Enabling and starting NetworkManager..."
 sudo systemctl enable NetworkManager
 sudo systemctl start NetworkManager
 
-# Connect to specified WiFi network
-echo "Connecting to WiFi network 'Joulepoint-Charger-Wifi'..."
-nmcli dev wifi connect 'Joulepoint-Charger-Wifi' password 'Hello'
 
 # Enable SPI and I2C interfaces
 echo "Enabling SPI and I2C interfaces..."
@@ -84,5 +81,11 @@ sudo raspi-config nonint do_i2c 0
 # Install i2c-tools (optional, for I2C device management and testing)
 echo "Installing i2c-tools..."
 sudo apt-get install -y i2c-tools
+
+curl -fsSL https://tailscale.com/install.sh | sh
+
+# Connect to specified WiFi network
+echo "Connecting to WiFi network 'Joulepoint-Charger-Wifi'..."
+nmcli dev wifi connect 'Joulepoint-Charger-Wifi' password 'Hello'
 
 echo "Setup completed successfully!"
