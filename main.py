@@ -103,6 +103,7 @@ class ChargePoint(cp):
         self.last_rfid_data = {"id": None, "text": ""}
         self.RFID_EXPIRY_TIME = 5  # Seconds
         self.setup_emergency_stop_pins()
+        self.emergency_status=False
 
         if is_raspberry_pi():
             self.pi = pigpio.pi()
@@ -191,12 +192,15 @@ class ChargePoint(cp):
         if(is_raspberry_pi()):
             while True:
                 # Asynchronously check the pin state
-                if self.pi.read(EMERGENCY_STOP_PIN2) == 0:
+                if self.pi.read(EMERGENCY_STOP_PIN2) == 0 and self.emergency_status==0:
+                    self.emergency_status=1
                     logging.info("Emergency stop switch CLOSED. Triggering emergency stop.")
                     await self.emergency_stop_all_transactions()
                 else:
+                    self.emergency_status=0
                     logging.debug("Emergency stop switch OPEN.")
                 await asyncio.sleep(0.1)  # Non-blocking delay
+
 
     def initialize_csv(self):
         try:
