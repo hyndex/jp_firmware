@@ -156,7 +156,7 @@ class ChargePoint(cp):
                     # Log when no RFID is read, this can be set to DEBUG if logging every second is too verbose
                     logging.debug("No RFID tag read.")
 
-                await asyncio.sleep(1)  # Non-blocking wait before checking for RFID tag again
+                await asyncio.sleep(4)  # Non-blocking wait before checking for RFID tag again
             except Exception as e:
                 logging.error(f"Error in RFID monitoring loop: {e}")
 
@@ -667,7 +667,7 @@ async def main():
                     cp_instance.send_status_notifications_loop(),
                     cp_instance.read_serial_data(),
                     cp_instance.monitor_and_process_rfid(),
-                    cp_instance.async_monitor_emergency_stop_pins(),
+                    # cp_instance.async_monitor_emergency_stop_pins(),
                 )
 
         except (websockets.exceptions.WebSocketException, ConnectionRefusedError, ConnectionResetError) as e:
