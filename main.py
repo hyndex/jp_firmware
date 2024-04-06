@@ -217,7 +217,7 @@ class ChargePoint(cp):
                     for connector_id in self.connector_status.keys():
                         self.update_connector_status(connector_id=connector_id, status='Available', error_code='NoError')
                     logging.debug("Emergency stop switch OPEN.")
-                await asyncio.sleep(0.1)  # Non-blocking delay
+                await asyncio.sleep(1)  # Non-blocking delay
 
 
     def initialize_csv(self):
