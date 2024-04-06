@@ -102,6 +102,7 @@ class ChargePoint(cp):
         self.initialize_csv()
         self.last_rfid_data = {"id": None, "text": ""}
         self.RFID_EXPIRY_TIME = 5  # Seconds
+        self.setup_emergency_stop_pins()
 
         if is_raspberry_pi():
             self.pi = pigpio.pi()
@@ -123,42 +124,43 @@ class ChargePoint(cp):
         """Monitors for RFID tags and processes them."""
         logging.info('RFID monitoring started.')
 
-        reader = SimpleMFRC522(pi=self.pi) 
-        last_write_time = time.time()
+        if(is_raspberry_pi):
+            reader = SimpleMFRC522(pi=self.pi) 
+            last_write_time = time.time()
 
-        while True:
-            try:
-                id, text = reader.read_no_block()
-                if id:
-                    text = text.strip("\x00") if text else ""
-                    current_time = time.time()
+            while True:
+                try:
+                    id, text = reader.read_no_block()
+                    if id:
+                        text = text.strip("\x00") if text else ""
+                        current_time = time.time()
 
-                    # Log every RFID read for auditing and debugging
-                    logging.debug(f"RFID read: ID {id}, Text: '{text}'.")
+                        # Log every RFID read for auditing and debugging
+                        logging.debug(f"RFID read: ID {id}, Text: '{text}'.")
 
-                    # Compare new read with last saved RFID data
-                    if id != self.last_rfid_read["id"] or text != self.last_rfid_read["text"] or (current_time - last_write_time >= self.RFID_EXPIRY_TIME):
-                        self.last_rfid_read = {"id": str(id), "text": text}
-                        logging.info(f"New RFID data: ID {id}, Text: '{text}'.")
+                        # Compare new read with last saved RFID data
+                        if id != self.last_rfid_read["id"] or text != self.last_rfid_read["text"] or (current_time - last_write_time >= self.RFID_EXPIRY_TIME):
+                            self.last_rfid_read = {"id": str(id), "text": text}
+                            logging.info(f"New RFID data: ID {id}, Text: '{text}'.")
 
-                        # Loop through all connectors and initiate transactions if the connector is available
-                        for connector_id, status_info in self.connector_status.items():
-                            if status_info['status'] == 'Available':
-                                logging.info(f"Initiating transaction for connector {connector_id} with RFID ID {id}.")
-                                await self.function_call_queue.put({
-                                    "function": self.start_transaction,
-                                    "args": [connector_id, str(id)],
-                                    "kwargs": {}
-                                })
+                            # Loop through all connectors and initiate transactions if the connector is available
+                            for connector_id, status_info in self.connector_status.items():
+                                if status_info['status'] == 'Available':
+                                    logging.info(f"Initiating transaction for connector {connector_id} with RFID ID {id}.")
+                                    await self.function_call_queue.put({
+                                        "function": self.start_transaction,
+                                        "args": [connector_id, str(id)],
+                                        "kwargs": {}
+                                    })
 
-                    last_write_time = current_time
-                else:
-                    # Log when no RFID is read, this can be set to DEBUG if logging every second is too verbose
-                    logging.debug("No RFID tag read.")
+                        last_write_time = current_time
+                    else:
+                        # Log when no RFID is read, this can be set to DEBUG if logging every second is too verbose
+                        logging.debug("No RFID tag read.")
 
-                await asyncio.sleep(4)  # Non-blocking wait before checking for RFID tag again
-            except Exception as e:
-                logging.error(f"Error in RFID monitoring loop: {e}")
+                    await asyncio.sleep(4)  # Non-blocking wait before checking for RFID tag again
+                except Exception as e:
+                    logging.error(f"Error in RFID monitoring loop: {e}")
 
     async def emergency_stop_all_transactions(self):
         logging.info("Initiating emergency stop for all transactions.")
@@ -172,30 +174,27 @@ class ChargePoint(cp):
             logging.debug(f"Connector status updated to Unavailable for connector {connector_id}.")
         logging.info("Emergency stop triggered for all transactions and connectors set to Unavailable.")
 
-    def monitor_emergency_stop_pins(self):
-        logging.info('Monitoring emergency stop pins.')
-        def emergency_stop_callback(gpio, level, tick):
-            logging.info(f'Emergency stop triggered via GPIO pin {gpio}. Level: {level}, Tick: {tick}')
-            asyncio.run(self.emergency_stop_all_transactions())
+    async def setup_emergency_stop_pins(self):
+        # Set PIN1 as output, initially LOW
+        self.pi.set_mode(EMERGENCY_STOP_PIN1, pigpio.OUTPUT)
+        self.pi.write(EMERGENCY_STOP_PIN1, 0)  # Send LOW signal
 
-        if is_raspberry_pi():
-            self.pi.set_mode(EMERGENCY_STOP_PIN1, pigpio.INPUT)
-            self.pi.set_pull_up_down(EMERGENCY_STOP_PIN1, pigpio.PUD_DOWN)
-            self.pi.set_mode(EMERGENCY_STOP_PIN2, pigpio.INPUT)
-            self.pi.set_pull_up_down(EMERGENCY_STOP_PIN2, pigpio.PUD_DOWN)
-            
-            self.pi.set_glitch_filter(EMERGENCY_STOP_PIN1, 100)  # Set a glitch filter to debounce
-            self.pi.set_glitch_filter(EMERGENCY_STOP_PIN2, 100)  # Set a glitch filter to debounce
+        # Set PIN2 as input with pull-up (expecting to be pulled low by pressing the switch)
+        self.pi.set_mode(EMERGENCY_STOP_PIN2, pigpio.INPUT)
+        self.pi.set_pull_up_down(EMERGENCY_STOP_PIN2, pigpio.PUD_UP)
+    
 
-            self.pi.callback(EMERGENCY_STOP_PIN1, pigpio.EITHER_EDGE, emergency_stop_callback)
-            self.pi.callback(EMERGENCY_STOP_PIN2, pigpio.EITHER_EDGE, emergency_stop_callback)
-            logging.info('Emergency stop callbacks set for GPIO pins.')
-
-    async def async_monitor_emergency_stop_pins(self):
-        logging.info('Starting async monitoring of emergency stop pins.')
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self.monitor_emergency_stop_pins)
-        logging.info('Async monitoring of emergency stop pins initiated.')
+    async def monitor_emergency_stop_pins(self):
+        logging.info('Asynchronously monitoring emergency stop pins.')
+        if(is_raspberry_pi()):
+            while True:
+                # Asynchronously check the pin state
+                if self.pi.read(EMERGENCY_STOP_PIN2) == 0:
+                    logging.info("Emergency stop switch CLOSED. Triggering emergency stop.")
+                    await self.emergency_stop_all_transactions()
+                else:
+                    logging.debug("Emergency stop switch OPEN.")
+                await asyncio.sleep(0.1)  # Non-blocking delay
 
     def initialize_csv(self):
         try:
@@ -672,8 +671,8 @@ async def main():
                     cp_instance.send_periodic_meter_values(),
                     cp_instance.send_status_notifications_loop(),
                     cp_instance.read_serial_data(),
-                    cp_instance.monitor_and_process_rfid(),
-                    cp_instance.async_monitor_emergency_stop_pins(),
+                    # cp_instance.monitor_and_process_rfid(),
+                    cp_instance.monitor_emergency_stop_pins(),
                 )
 
         except (websockets.exceptions.WebSocketException, ConnectionRefusedError, ConnectionResetError) as e:
