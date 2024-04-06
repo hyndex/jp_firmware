@@ -201,6 +201,7 @@ class ChargePoint(cp):
     
 
     async def monitor_emergency_stop_pins(self):
+        await asyncio.sleep(3)
         logging.info('Asynchronously monitoring emergency stop pins.')
         if(is_raspberry_pi()):
             while True:
