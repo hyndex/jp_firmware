@@ -98,10 +98,15 @@ class RelayController:
 class ChargePoint(cp):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if is_raspberry_pi():
+            self.pi = pigpio.pi()
+            self.setup_emergency_stop_pins()
+            if not self.pi.connected:
+                raise RuntimeError("pigpio daemon is not running")
+            
         self.initialize_csv()
         self.last_rfid_data = {"id": None, "text": ""}
         self.RFID_EXPIRY_TIME = 5  # Seconds
-        self.setup_emergency_stop_pins()
         self.emergency_status=False
         self.last_sent_status_info = {}
 
@@ -121,10 +126,7 @@ class ChargePoint(cp):
         self.reset_data()
 
 
-        if is_raspberry_pi():
-            self.pi = pigpio.pi()
-            if not self.pi.connected:
-                raise RuntimeError("pigpio daemon is not running")
+        
 
 
     async def update_specific_lcd_line(self, line_number, message):
