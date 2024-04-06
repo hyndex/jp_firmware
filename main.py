@@ -160,18 +160,22 @@ class ChargePoint(cp):
             except Exception as e:
                 logging.error(f"Error in RFID monitoring loop: {e}")
 
-#
     async def emergency_stop_all_transactions(self):
+        logging.info("Initiating emergency stop for all transactions.")
         for connector_id in list(self.active_transactions.keys()):
             await self.stop_transaction(connector_id, reason='EmergencyStop')
+            logging.debug(f"Transaction stopped for connector {connector_id}.")
         # Set all connectors to 'Unavailable' regardless of whether a transaction was active
         for connector_id in self.connector_status.keys():
             self.update_connector_status(connector_id=connector_id, status='Unavailable', error_code='EmergencyStop')
             asyncio.create_task(self.send_status_notification(connector_id))
+            logging.debug(f"Connector status updated to Unavailable for connector {connector_id}.")
         logging.info("Emergency stop triggered for all transactions and connectors set to Unavailable.")
 
     def monitor_emergency_stop_pins(self):
+        logging.info('Monitoring emergency stop pins.')
         def emergency_stop_callback(gpio, level, tick):
+            logging.info(f'Emergency stop triggered via GPIO pin {gpio}. Level: {level}, Tick: {tick}')
             asyncio.run(self.emergency_stop_all_transactions())
 
         if is_raspberry_pi():
@@ -185,11 +189,13 @@ class ChargePoint(cp):
 
             self.pi.callback(EMERGENCY_STOP_PIN1, pigpio.EITHER_EDGE, emergency_stop_callback)
             self.pi.callback(EMERGENCY_STOP_PIN2, pigpio.EITHER_EDGE, emergency_stop_callback)
-
+            logging.info('Emergency stop callbacks set for GPIO pins.')
 
     async def async_monitor_emergency_stop_pins(self):
+        logging.info('Starting async monitoring of emergency stop pins.')
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self.monitor_emergency_stop_pins)
+        logging.info('Async monitoring of emergency stop pins initiated.')
 
     def initialize_csv(self):
         try:
@@ -667,7 +673,7 @@ async def main():
                     cp_instance.send_status_notifications_loop(),
                     cp_instance.read_serial_data(),
                     cp_instance.monitor_and_process_rfid(),
-                    # cp_instance.async_monitor_emergency_stop_pins(),
+                    cp_instance.async_monitor_emergency_stop_pins(),
                 )
 
         except (websockets.exceptions.WebSocketException, ConnectionRefusedError, ConnectionResetError) as e:
