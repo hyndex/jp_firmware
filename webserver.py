@@ -177,7 +177,17 @@ def check_pm2_status():
     except subprocess.CalledProcessError:
         return False
 
-def create_hotspot():
+# Additional functions for handling Wi-Fi connections and hotspot creation
+def disconnect_wifi_interface(interface='wlan0'):
+    """Disconnects the specified Wi-Fi interface from any network."""
+    try:
+        subprocess.run(['nmcli', 'device', 'disconnect', interface], check=True)
+        print(f"Disconnected {interface} from any connected networks.")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to disconnect {interface}: {e}")
+
+
+def create_hotspot(interface='wlan0'):
     """Create a WiFi hotspot with a fixed IP address."""
     hardware_details = load_or_generate_hardware_details()
     ssid = hardware_details['hardware_id']
@@ -194,6 +204,8 @@ def create_hotspot():
 
     # Create a new hotspot connection with a static IP address
     try:
+        disconnect_wifi_interface(interface)
+
         subprocess.check_call([
             'nmcli', 'connection', 'add', 
             'type', 'wifi', 
