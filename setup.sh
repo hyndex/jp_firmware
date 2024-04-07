@@ -60,22 +60,6 @@ echo "Enabling serial interface..."
 sudo sed -i 's/^#enable_uart=1/enable_uart=1/' /boot/config.txt
 sudo sed -i '/console=serial0,115200/d' /boot/cmdline.txt
 
-# Install and configure NetworkManager
-echo "Installing NetworkManager..."
-sudo apt-get install -y network-manager
-
-echo "Stopping and disabling systemd-networkd and wpa_supplicant..."
-sudo systemctl stop systemd-networkd wpa_supplicant
-sudo systemctl disable systemd-networkd wpa_supplicant
-
-
-echo "Enabling and starting NetworkManager..."
-sudo systemctl enable NetworkManager
-sudo systemctl start NetworkManager
-
-# Connect to specified WiFi network
-echo "Connecting to WiFi network 'Joulepoint-Charger-Wifi'..."
-nmcli dev wifi connect 'Joulepoint-Charger-Wifi' password '1qaz2wsx'
 
 # Enable SPI and I2C interfaces
 echo "Enabling SPI and I2C interfaces..."
@@ -100,5 +84,24 @@ sudo apt-get install -y dnsmasq
 # Restart dnsmasq to apply the changes
 echo "Restarting dnsmasq to apply configurations..."
 # sudo systemctl restart dnsmasq
+
+
+# Install and configure NetworkManager
+echo "Installing NetworkManager..."
+sudo apt-get install -y network-manager
+
+echo "Stopping and disabling systemd-networkd and wpa_supplicant..."
+sudo systemctl stop systemd-networkd wpa_supplicant
+sudo systemctl disable systemd-networkd wpa_supplicant
+
+
+echo "Enabling and starting NetworkManager..."
+sudo systemctl enable NetworkManager
+sudo systemctl start NetworkManager
+
+# Connect to specified WiFi network
+echo "Connecting to WiFi network 'Joulepoint-Charger-Wifi'..."
+nmcli dev wifi connect 'Joulepoint-Charger-Wifi' password '1qaz2wsx'
+
 
 echo "Setup completed successfully!"
