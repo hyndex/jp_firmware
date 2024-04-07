@@ -38,8 +38,7 @@ NEW_FIRMWARE_PREFIX = "new_firmware_"
 SERIAL_PORT = '/dev/serial0'
 BAUD_RATE = 9600
 # GPIO Pins for Emergency Stop Condition
-EMERGENCY_STOP_PIN1 = 5  # GPIO pin number
-EMERGENCY_STOP_PIN2 = 6  # Another GPIO pin number
+EMERGENCY_STOP_PIN1 = 6  # GPIO pin number
 
 
 # Logging configuration
@@ -100,7 +99,7 @@ class ChargePoint(cp):
         super().__init__(*args, **kwargs)
         if is_raspberry_pi():
             self.pi = pigpio.pi()
-            self.setup_emergency_stop_pins()
+            self.setup_emergency_stop_pin()
             if not self.pi.connected:
                 raise RuntimeError("pigpio daemon is not running")
             
@@ -190,30 +189,24 @@ class ChargePoint(cp):
             logging.debug(f"Transaction stopped for connector {connector_id}.")        
         logging.info("Emergency stop triggered for all transactions and connectors set to Unavailable.")
 
-    def setup_emergency_stop_pins(self):
-        # Set PIN1 as output, initially LOW
-        self.pi.set_mode(EMERGENCY_STOP_PIN1, pigpio.OUTPUT)
-        self.pi.write(EMERGENCY_STOP_PIN1, 0)  # Send LOW signal
-
-        # Set PIN2 as input with pull-up (expecting to be pulled low by pressing the switch)
-        self.pi.set_mode(EMERGENCY_STOP_PIN2, pigpio.INPUT)
-        self.pi.set_pull_up_down(EMERGENCY_STOP_PIN2, pigpio.PUD_UP)
+    def setup_emergency_stop_pin(self):
+        # Set EMERGENCY_STOP_PIN1 as input with pull-down resistor
+        self.pi.set_mode(EMERGENCY_STOP_PIN1, pigpio.INPUT)
+        self.pi.set_pull_up_down(EMERGENCY_STOP_PIN1, pigpio.PUD_DOWN)
     
 
-    async def monitor_emergency_stop_pins(self):
-        await asyncio.sleep(3)
-        logging.info('Asynchronously monitoring emergency stop pins.')
-        if(is_raspberry_pi()):
+    async def monitor_emergency_stop_pin(self):
+        logging.info('Monitoring emergency stop pin.')
+        if is_raspberry_pi():
             while True:
-                # Asynchronously check the pin state
-                if self.pi.read(EMERGENCY_STOP_PIN2) == 1 and self.emergency_status==0:
+                if self.pi.read(EMERGENCY_STOP_PIN1) == 1 and self.emergency_status==0:
                     self.emergency_status=1
                     logging.info("Emergency stop switch CLOSED. Triggering emergency stop.")
                     for connector_id in self.connector_status.keys():
                         self.update_connector_status(connector_id=connector_id, status='Faulted', error_code='OtherError')
                         logging.debug(f"Connector status updated to Unavailable for connector {connector_id}.")
                     await self.emergency_stop_all_transactions()
-                elif self.pi.read(EMERGENCY_STOP_PIN2) == 1:  
+                elif self.pi.read(EMERGENCY_STOP_PIN1) == 1:  
                     pass 
                 else:
                     # self.emergency_status=0

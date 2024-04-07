@@ -20,9 +20,16 @@ app = Flask(__name__)
 HARDWARE_DETAILS_FILE = 'hardware_details.json'
 CHARGING_SESSIONS_FILE = 'charging_sessions.csv'
 CHARGER_DETAILS_FILE = 'charger.json'
-EMERGENCY_STOP_PIN1 = 5  # Output GPIO pin number
-EMERGENCY_STOP_PIN2 = 6  # Input GPIO pin number for the emergency stop button
+EMERGENCY_STOP_PIN = 5  # Output GPIO pin number
 button_press_times = []  # To track the timestamps of the emergency button presses
+
+def setup_emergency_stop_pin():
+    """Configure the GPIO pin for the emergency stop button."""
+    if pi:
+        pi.set_mode(EMERGENCY_STOP_PIN, pigpio.INPUT)
+        pi.set_pull_up_down(EMERGENCY_STOP_PIN, pigpio.PUD_DOWN)  # Use internal pull-down resistor
+
+button_press_times = []
 
 
 def load_charger_details():
@@ -83,29 +90,24 @@ else:
     pi = None
     print("Running on a non-Raspberry Pi system. GPIO pin monitoring disabled.")
 
-def setup_emergency_stop_pins():
-    """Set up GPIO pins for emergency stop mechanism."""
-    if pi:
-        pi.set_mode(EMERGENCY_STOP_PIN1, pigpio.OUTPUT)
-        pi.write(EMERGENCY_STOP_PIN1, 0)  # Initially LOW
-        pi.set_mode(EMERGENCY_STOP_PIN2, pigpio.INPUT)
-        pi.set_pull_up_down(EMERGENCY_STOP_PIN2, pigpio.PUD_UP)  # Pull-up
+
 
 def monitor_emergency_button():
-    """Monitor the emergency button and trigger hotspot creation if pressed thrice within 10 seconds."""
+    """Monitor the emergency button and perform actions based on its state."""
     global button_press_times
     if pi:
         while True:
-            if pi.read(EMERGENCY_STOP_PIN2) == 0:  # Active LOW
+            # Read the pin state: 1 for button pressed (circuit closed), 0 for released
+            if pi.read(EMERGENCY_STOP_PIN) == 1:  # Button pressed
                 button_press_times.append(datetime.now())
                 # Filter presses within the last 10 seconds
                 button_press_times = [time for time in button_press_times if time > datetime.now() - timedelta(seconds=10)]
                 if len(button_press_times) >= 3:
-                    create_hotspot()
-                    button_press_times.clear()  # Clear after creating hotspot
-                while pi.read(EMERGENCY_STOP_PIN2) == 0:
-                    time.sleep(0.1)  # Debounce
-            time.sleep(0.1)
+                    print("Emergency stop activated.")  # Replace this with actual emergency stop logic
+                    button_press_times.clear()  # Clear the timestamps after handling emergency stop
+                while pi.read(EMERGENCY_STOP_PIN) == 1:
+                    time.sleep(0.1)  # Debounce by waiting until button is released
+            time.sleep(0.1)  # Check button state every 100 ms
 
 def check_internet_connection():
     """Check if there is an internet connection."""
@@ -249,7 +251,7 @@ def index():
                            charging_sessions=charging_sessions)
 
 if __name__ == '__main__':
-    setup_emergency_stop_pins()
+    setup_emergency_stop_pin()
     if is_raspberry_pi() and pi:
         emergency_button_thread = threading.Thread(target=monitor_emergency_button)
         emergency_button_thread.start()
