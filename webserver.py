@@ -127,7 +127,7 @@ def monitor_emergency_button():
                 hotspot_created = False  # Reset the state to allow hotspot creation again
                 
             last_button_state = current_button_state
-            time.sleep(0.1)  # Check button state every 100 ms
+            time.sleep(5)  # Check button state every 100 ms
 
 def check_internet_connection():
     """Check if there is an internet connection."""
@@ -204,25 +204,37 @@ def create_hotspot(interface='wlan0'):
 
     # Create a new hotspot connection with a static IP address
     try:
-        disconnect_wifi_interface(interface)
+        # subprocess.check_call([
+        #     'nmcli', 'connection', 'add', 
+        #     'type', 'wifi', 
+        #     'ifname', '*', 
+        #     'con-name', ssid, 
+        #     'ssid', ssid, 
+        #     'autoconnect', 'yes', 
+        #     'save', 'yes'
+        # ])
+        # subprocess.check_call([
+        #     'nmcli', 'connection', 'modify', ssid, 
+        #     'wifi-sec.key-mgmt', 'wpa-psk', 
+        #     'wifi-sec.psk', password,
+        #     'ipv4.method', 'shared', 
+        #     'ipv4.addr', ip_address
+        # ])
+        # subprocess.check_call(['nmcli', 'connection', 'up', ssid])
 
-        subprocess.check_call([
-            'nmcli', 'connection', 'add', 
-            'type', 'wifi', 
-            'ifname', '*', 
-            'con-name', ssid, 
-            'ssid', ssid, 
-            'autoconnect', 'yes', 
-            'save', 'yes'
-        ])
-        subprocess.check_call([
-            'nmcli', 'connection', 'modify', ssid, 
-            'wifi-sec.key-mgmt', 'wpa-psk', 
-            'wifi-sec.psk', password,
-            'ipv4.method', 'shared', 
-            'ipv4.addr', ip_address
-        ])
-        subprocess.check_call(['nmcli', 'connection', 'up', ssid])
+        try:
+            disconnect_wifi_interface()
+            # Turn off the Wi-Fi device
+            subprocess.run(['nmcli', 'radio', 'wifi', 'off'], check=True)
+            # Set the Wi-Fi device to managed mode
+            subprocess.run(['nmcli', 'device', 'set', 'wlan0', 'managed', 'yes'], check=True)
+            # Turn on the Wi-Fi device
+            subprocess.run(['nmcli', 'radio', 'wifi', 'on'], check=True)
+            # Create the Wi-Fi Hotspot
+            subprocess.run(['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'ssid', ssid, 'password', password], check=True)
+            print(f"Hotspot '{ssid}' created successfully.")
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to create hotspot: {e}")
         print("Hotspot created with SSID:", ssid)
         return True
     except subprocess.CalledProcessError as e:

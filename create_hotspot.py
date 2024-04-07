@@ -17,9 +17,19 @@ def read_hardware_details(filepath):
         print("Error: JSON decode error.")
         return None
 
+# Additional functions for handling Wi-Fi connections and hotspot creation
+def disconnect_wifi_interface(interface='wlan0'):
+    """Disconnects the specified Wi-Fi interface from any network."""
+    try:
+        subprocess.run(['nmcli', 'device', 'disconnect', interface], check=True)
+        print(f"Disconnected {interface} from any connected networks.")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to disconnect {interface}: {e}")
+
 def create_hotspot(ssid, password):
     """Creates a Wi-Fi hotspot using the specified SSID and password."""
     try:
+        disconnect_wifi_interface()
         # Turn off the Wi-Fi device
         subprocess.run(['nmcli', 'radio', 'wifi', 'off'], check=True)
         # Set the Wi-Fi device to managed mode
