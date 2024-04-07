@@ -667,7 +667,7 @@ async def main():
                     cp_instance.send_status_notifications_loop(),
                     cp_instance.read_serial_data(),
                     # cp_instance.monitor_and_process_rfid(),
-                    cp_instance.monitor_emergency_stop_pins(),
+                    cp_instance.monitor_emergency_stop_pin(),
                 )
 
         except (websockets.exceptions.WebSocketException, ConnectionRefusedError, ConnectionResetError) as e:
