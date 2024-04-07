@@ -22,6 +22,7 @@ CHARGING_SESSIONS_FILE = 'charging_sessions.csv'
 CHARGER_DETAILS_FILE = 'charger.json'
 EMERGENCY_STOP_PIN = 5  # Output GPIO pin number
 button_press_times = []  # To track the timestamps of the emergency button presses
+hotspot_created = False  # Track if the hotspot has already been created
 
 def setup_emergency_stop_pin():
     """Configure the GPIO pin for the emergency stop button."""
@@ -105,19 +106,27 @@ else:
 
 def monitor_emergency_button():
     """Monitor the emergency button and perform actions based on its state."""
-    global button_press_times
+    global hotspot_created
     if pi:
+        last_button_state = pi.read(EMERGENCY_STOP_PIN)
         while True:
-            # Read the pin state: 1 for button pressed (circuit closed), 0 for released
-            if pi.read(EMERGENCY_STOP_PIN) == 1:  # Button pressed
-                button_press_times.append(datetime.now())
-                # Filter presses within the last 10 seconds
-                button_press_times = [time for time in button_press_times if time > datetime.now() - timedelta(seconds=10)]
-                if len(button_press_times) >= 3:
-                    print("Emergency stop activated.")  # Replace this with actual emergency stop logic
-                    button_press_times.clear()  # Clear the timestamps after handling emergency stop
-                while pi.read(EMERGENCY_STOP_PIN) == 1:
-                    time.sleep(0.1)  # Debounce by waiting until button is released
+            current_button_state = pi.read(EMERGENCY_STOP_PIN)
+            # Detect switch from off to on
+            if current_button_state == 1 and last_button_state == 0:
+                print("Switch turned on.")
+                if not hotspot_created:
+                    print("Creating hotspot.")
+                    create_hotspot_success = create_hotspot()
+                    if create_hotspot_success:
+                        hotspot_created = True
+                    else:
+                        print("Failed to create hotspot.")
+            # Detect switch from on to off
+            elif current_button_state == 0 and last_button_state == 1:
+                print("Switch turned off.")
+                hotspot_created = False  # Reset the state to allow hotspot creation again
+                
+            last_button_state = current_button_state
             time.sleep(0.1)  # Check button state every 100 ms
 
 def check_internet_connection():
