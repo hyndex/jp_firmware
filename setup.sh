@@ -44,7 +44,7 @@ sudo npm install -g pm2
 # Start the main.py script with PM2
 echo "Starting the main.py script with PM2..."
 # pm2 start ./venv/bin/python --name "main" -- main.py
-pm2 start ./venv/bin/python --name "webserver" -- webserver.py
+# pm2 start ./venv/bin/python --name "webserver" -- webserver.py
 
 # Set up PM2 to start at boot
 echo "Setting up PM2 to start at boot..."
@@ -82,7 +82,7 @@ sudo raspi-config nonint do_i2c 0
 echo "Installing i2c-tools..."
 sudo apt-get install -y i2c-tools
 
-curl -fsSL https://tailscale.com/install.sh | sh
+curl -fsSL https://tailscale.com/install.sh | sudo sh
 
 # Connect to specified WiFi network
 echo "Connecting to WiFi network 'Joulepoint-Charger-Wifi'..."
@@ -93,11 +93,11 @@ echo "Installing dnsmasq for DNS management..."
 sudo apt-get install -y dnsmasq
 
 # Configure dnsmasq to resolve jp.local to the Raspberry Pi's IP address in the hotspot network
-echo "Configuring dnsmasq for jp.local resolution..."
-echo "address=/jp.local/10.42.0.1" | sudo tee -a /etc/dnsmasq.conf
+# echo "Configuring dnsmasq for jp.local resolution..."
+# echo "address=/jp.local/10.42.0.1" | sudo tee -a /etc/dnsmasq.conf
 
 # Restart dnsmasq to apply the changes
 echo "Restarting dnsmasq to apply configurations..."
-sudo systemctl restart dnsmasq
+# sudo systemctl restart dnsmasq
 
 echo "Setup completed successfully!"
