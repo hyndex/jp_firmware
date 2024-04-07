@@ -68,10 +68,14 @@ echo "Stopping and disabling systemd-networkd and wpa_supplicant..."
 sudo systemctl stop systemd-networkd wpa_supplicant
 sudo systemctl disable systemd-networkd wpa_supplicant
 
+
 echo "Enabling and starting NetworkManager..."
 sudo systemctl enable NetworkManager
 sudo systemctl start NetworkManager
 
+# Connect to specified WiFi network
+echo "Connecting to WiFi network 'Joulepoint-Charger-Wifi'..."
+nmcli dev wifi connect 'Joulepoint-Charger-Wifi' password '1qaz2wsx'
 
 # Enable SPI and I2C interfaces
 echo "Enabling SPI and I2C interfaces..."
@@ -84,9 +88,6 @@ sudo apt-get install -y i2c-tools
 
 curl -fsSL https://tailscale.com/install.sh | sudo sh
 
-# Connect to specified WiFi network
-echo "Connecting to WiFi network 'Joulepoint-Charger-Wifi'..."
-nmcli dev wifi connect 'Joulepoint-Charger-Wifi' password '1qaz2wsx'
 
 # Install dnsmasq for DNS
 echo "Installing dnsmasq for DNS management..."
