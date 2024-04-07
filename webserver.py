@@ -32,6 +32,17 @@ def setup_emergency_stop_pin():
 button_press_times = []
 
 
+from flask import send_from_directory
+
+@app.route('/download_charging_sessions')
+def download_charging_sessions():
+    """Serve the charging sessions CSV file for download."""
+    directory = os.getcwd()  # Get the current working directory
+    return send_from_directory(directory=directory,
+                               path=CHARGING_SESSIONS_FILE,
+                               as_attachment=True)
+
+
 def load_charger_details():
     """Load charger details from JSON file."""
     if os.path.exists(CHARGER_DETAILS_FILE):
@@ -158,20 +169,45 @@ def check_pm2_status():
         return False
 
 def create_hotspot():
-    """Create a WiFi hotspot."""
+    """Create a WiFi hotspot with a fixed IP address."""
     hardware_details = load_or_generate_hardware_details()
     ssid = hardware_details['hardware_id']
-    password = hardware_details.get('password')
-    if not password:
-        password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
-        hardware_details['password'] = password
-        with open(HARDWARE_DETAILS_FILE, 'w') as f:
-            json.dump(hardware_details, f)
+    password = hardware_details.get('password', ''.join(random.choices(string.ascii_letters + string.digits, k=12)))
+
+    # Define fixed IP address and subnet
+    ip_address = "10.42.0.1/24"
+
     try:
-        subprocess.check_output(['nmcli', 'device', 'wifi', 'hotspot', 'con-name', ssid, 'ssid', ssid, 'band', 'bg', 'password', password])
-        return True
+        # Delete existing hotspot connection if exists
+        subprocess.check_call(['nmcli', 'connection', 'delete', ssid], stderr=subprocess.DEVNULL)
     except subprocess.CalledProcessError:
+        pass  # Ignore if the hotspot connection does not exist
+
+    # Create a new hotspot connection with a static IP address
+    try:
+        subprocess.check_call([
+            'nmcli', 'connection', 'add', 
+            'type', 'wifi', 
+            'ifname', '*', 
+            'con-name', ssid, 
+            'ssid', ssid, 
+            'autoconnect', 'yes', 
+            'save', 'yes'
+        ])
+        subprocess.check_call([
+            'nmcli', 'connection', 'modify', ssid, 
+            'wifi-sec.key-mgmt', 'wpa-psk', 
+            'wifi-sec.psk', password,
+            'ipv4.method', 'shared', 
+            'ipv4.addr', ip_address
+        ])
+        subprocess.check_call(['nmcli', 'connection', 'up', ssid])
+        print("Hotspot created with SSID:", ssid)
+        return True
+    except subprocess.CalledProcessError as e:
+        print("Failed to create hotspot:", e)
         return False
+
 
 def generate_hardware_details():
     """Generate and save new hardware details."""
@@ -244,11 +280,13 @@ def index():
 
     # Load charger details and charging sessions for rendering the page
     charger_details = load_charger_details()
-    charging_sessions = load_charging_sessions()
+    all_charging_sessions = load_charging_sessions()
+    latest_charging_sessions = all_charging_sessions[-10:]  # Get the last 10 sessions
 
     return render_template('index.html', message=message, 
                            charger_details=charger_details,
-                           charging_sessions=charging_sessions)
+                           charging_sessions=latest_charging_sessions)  # Pass only latest sessions
+
 
 if __name__ == '__main__':
     setup_emergency_stop_pin()

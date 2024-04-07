@@ -94,7 +94,7 @@ sudo apt-get install -y dnsmasq
 
 # Configure dnsmasq to resolve jp.local to the Raspberry Pi's IP address in the hotspot network
 echo "Configuring dnsmasq for jp.local resolution..."
-echo "address=/jp.local/192.168.4.1" | sudo tee -a /etc/dnsmasq.conf
+echo "address=/jp.local/10.42.0.1" | sudo tee -a /etc/dnsmasq.conf
 
 # Restart dnsmasq to apply the changes
 echo "Restarting dnsmasq to apply configurations..."

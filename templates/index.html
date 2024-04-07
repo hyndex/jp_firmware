@@ -16,23 +16,6 @@
 
 <body>
     <div class="container">
-
-        <div class="mt-5">
-            <h2>Available Wi-Fi Networks</h2>
-            <ul id="wifiNetworksList"></ul>
-            <form id="connectWifiForm">
-                <div class="form-group">
-                    <label for="wifiSSID">Select Wi-Fi:</label>
-                    <select id="wifiSSID" class="form-control" name="ssid" required></select>
-                </div>
-                <div class="form-group">
-                    <label for="wifiPassword">Password:</label>
-                    <input type="password" class="form-control" id="wifiPassword" name="password" required>
-                </div>
-                <button type="submit" class="btn btn-primary">Test Connection</button>
-            </form>
-        </div>
-        
         <h2>Configure Charger Settings</h2>
         <form method="post">
             <div class="form-group">
@@ -59,6 +42,16 @@
         <a href="/download_pm2_log" class="btn btn-info" style="margin-top: 20px;">Download PM2 Log</a>
     </div>
 
+    <div class="container mt-5">
+        <h2>Charging Sessions</h2>
+        <table class="table">
+            <!-- Table headers and body remain unchanged -->
+        </table>
+        <!-- Add a download link for the CSV file -->
+        <a href="/download_charging_sessions" class="btn btn-success" style="margin-top: 20px;">Download Complete CSV</a>
+    </div>
+
+    
     <div class="container mt-5">
         <h2>Charging Sessions</h2>
         <table class="table">
