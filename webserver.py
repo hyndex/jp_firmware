@@ -1,5 +1,5 @@
 import csv
-from flask import Flask, request, render_template, send_file
+from flask import Flask, request, render_template, send_file, send_from_directory
 import json
 import subprocess
 import os
@@ -32,8 +32,6 @@ def setup_emergency_stop_pin():
 
 button_press_times = []
 
-
-from flask import send_from_directory
 
 @app.route('/download_charging_sessions')
 def download_charging_sessions():
@@ -92,6 +90,28 @@ def connect_to_wifi(ssid, password):
         return False
 
 
+def close_hotspot_and_reconnect(interface='wlan0', original_ssid='', original_password=''):
+    """Closes the created hotspot and reconnects to the original Wi-Fi network."""
+    try:
+        # Disconnect the hotspot
+        subprocess.run(['nmcli', 'connection', 'delete', 'hotspot'], check=True)
+        print("Hotspot connection deleted.")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to delete hotspot connection: {e}")
+
+    # Attempt to reconnect to the original Wi-Fi network
+    if original_ssid and original_password:
+        connect_success = connect_to_wifi(original_ssid, original_password)
+        if connect_success:
+            print(f"Reconnected to original network {original_ssid}.")
+        else:
+            print("Failed to reconnect to original network.")
+    else:
+        print("No original network details provided.")
+
+    # Ensure the Wi-Fi device is turned on
+    subprocess.run(['nmcli', 'radio', 'wifi', 'on'], check=True)
+
 
 if is_raspberry_pi():
     pi = pigpio.pi()
@@ -125,6 +145,8 @@ def monitor_emergency_button():
             elif current_button_state == 0 and last_button_state == 1:
                 print("Switch turned off.")
                 hotspot_created = False  # Reset the state to allow hotspot creation again
+                charger_details = load_charger_details()
+                close_hotspot_and_reconnect(interface='wlan0', original_ssid=charger_details['wifi_ssid'],original_password=charger_details['wifi_password'])
                 
             last_button_state = current_button_state
             time.sleep(5)  # Check button state every 100 ms
@@ -204,24 +226,6 @@ def create_hotspot(interface='wlan0'):
 
     # Create a new hotspot connection with a static IP address
     try:
-        # subprocess.check_call([
-        #     'nmcli', 'connection', 'add', 
-        #     'type', 'wifi', 
-        #     'ifname', '*', 
-        #     'con-name', ssid, 
-        #     'ssid', ssid, 
-        #     'autoconnect', 'yes', 
-        #     'save', 'yes'
-        # ])
-        # subprocess.check_call([
-        #     'nmcli', 'connection', 'modify', ssid, 
-        #     'wifi-sec.key-mgmt', 'wpa-psk', 
-        #     'wifi-sec.psk', password,
-        #     'ipv4.method', 'shared', 
-        #     'ipv4.addr', ip_address
-        # ])
-        # subprocess.check_call(['nmcli', 'connection', 'up', ssid])
-
         try:
             disconnect_wifi_interface()
             # Turn off the Wi-Fi device

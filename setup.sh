@@ -33,7 +33,7 @@ sudo apt-get install -y python3-venv
 python3 -m venv venv
 source venv/bin/activate
 
-sudo apt-get install python3-dev
+sudo apt-get install -y python3-dev
 # Install Python dependencies
 echo "Installing Python dependencies..."
 pip install -r requirements.txt
@@ -101,8 +101,8 @@ echo "Installing dnsmasq for DNS management..."
 sudo apt-get install -y dnsmasq
 
 # Configure dnsmasq to resolve jp.local to the Raspberry Pi's IP address in the hotspot network
-echo "Configuring dnsmasq for jp.local resolution..."
-echo "address=/jp.local/10.42.0.1" | sudo tee -a /etc/dnsmasq.conf
+# echo "Configuring dnsmasq for jp.local resolution..."
+# echo "address=/jp.local/10.42.0.1" | sudo tee -a /etc/dnsmasq.conf
 
 
 # Connect to specified WiFi network
