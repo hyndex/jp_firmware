@@ -8,6 +8,7 @@ import re
 import subprocess
 import threading
 from datetime import datetime
+from datetime import timedelta
 import time
 from lcd_display_20_4 import update_lcd_line
 from MFRC522 import SimpleMFRC522
@@ -572,7 +573,7 @@ class ChargePoint(cp):
                             await self.function_call_queue.put({"function": self.stop_transaction, "args": [key], "kwargs": {"reason": "SuspendedEVSE"}})
 
                         if self.meter[key]['current'] > self.config.get("CurrentRestrictions_min", 0.3) and key in self.active_transactions:
-                            if datetime.now() - self.active_transactions[key]['start_time'] >= datetime.timedelta(minutes=int(self.config.get("CurrentTimingRestrictions_duration_minutes", 1))):  # Check if a minute has passed since the session start
+                            if datetime.now() - self.active_transactions[key]['start_time'] >= timedelta(minutes=int(self.config.get("CurrentTimingRestrictions_duration_minutes", 1))):  # Check if a minute has passed since the session start
                                 self.update_connector_status(key, status='Faulted', error_code='OverCurrentFailure')
                                 await self.function_call_queue.put({"function": self.stop_transaction, "args": [key], "kwargs": {"reason": "SuspendedEVSE"}})
                         
