@@ -599,21 +599,21 @@ class ChargePoint(cp):
                                         self.meter[key]['energy'] += (values['power']) * (sleep_interval / 3600)
                                         values['energy'] = self.meter[key]['energy']
                                     self.meter[key] = values
-                                    if values['voltage'] < self.config.get("VoltageRestrictions_min", 210):
+                                    if values['voltage'] < float(self.config.get("VoltageRestrictions_min", 210)):
                                         self.update_connector_status(key, status='Faulted', error_code='UnderVoltage')
                                         if key in self.active_transactions:
                                             await self.function_call_queue.put({"function": self.stop_transaction, "args": [key], "kwargs": {"reason": "SuspendedEVSE"}})
 
-                                    if values['voltage'] > self.config.get("VoltageRestrictions_max", 250):
+                                    if values['voltage'] > float(self.config.get("VoltageRestrictions_max", 250)):
                                         self.update_connector_status(key, status='Faulted', error_code='OverVoltage')
                                         if key in self.active_transactions:
                                             await self.function_call_queue.put({"function": self.stop_transaction, "args": [key], "kwargs": {"reason": "SuspendedEVSE"}})
 
-                                    if values['current'] > self.config.get("CurrentRestrictions_max", 32) and key in self.active_transactions:
+                                    if values['current'] > float(self.config.get("CurrentRestrictions_max", 32)) and key in self.active_transactions:
                                         self.update_connector_status(key, status='Faulted', error_code='OverCurrentFailure')
                                         await self.function_call_queue.put({"function": self.stop_transaction, "args": [key], "kwargs": {"reason": "SuspendedEVSE"}})
 
-                                    if values['current'] < self.config.get("CurrentRestrictions_min", 0.3) and key in self.active_transactions:
+                                    if float(values['current']) < float(self.config.get("CurrentRestrictions_min", 0.3)) and key in self.active_transactions:
                                         if datetime.now() - self.active_transactions[key]['start_time'] >= timedelta(minutes=int(self.config.get("CurrentTimingRestrictions_duration_minutes", 1))):  # Check if a minute has passed since the session start
                                             self.update_connector_status(key, status='Available', error_code='NoError')
                                             await self.function_call_queue.put({"function": self.stop_transaction, "args": [key], "kwargs": {"reason": "SuspendedEV"}})
