@@ -77,14 +77,6 @@ eval $pm2_startup_command
 curl -fsSL https://tailscale.com/install.sh | sudo sh
 
 
-# Install dnsmasq for DNS
-echo "Installing dnsmasq for DNS management..."
-sudo apt-get install -y dnsmasq
-
-# Configure dnsmasq to resolve jp.local to the Raspberry Pi's IP address in the hotspot network
-# echo "Configuring dnsmasq for jp.local resolution..."
-# echo "address=/jp.local/10.42.0.1" | sudo tee -a /etc/dnsmasq.conf
-
 # Restart dnsmasq to apply the changes
 echo "Restarting dnsmasq to apply configurations..."
 # sudo systemctl restart dnsmasq
@@ -102,6 +94,16 @@ sudo systemctl disable systemd-networkd wpa_supplicant
 echo "Enabling and starting NetworkManager..."
 sudo systemctl enable NetworkManager
 sudo systemctl start NetworkManager
+
+
+# Install dnsmasq for DNS
+echo "Installing dnsmasq for DNS management..."
+sudo apt-get install -y dnsmasq
+
+# Configure dnsmasq to resolve jp.local to the Raspberry Pi's IP address in the hotspot network
+echo "Configuring dnsmasq for jp.local resolution..."
+echo "address=/jp.local/10.42.0.1" | sudo tee -a /etc/dnsmasq.conf
+
 
 # Connect to specified WiFi network
 echo "Connecting to WiFi network 'Joulepoint-Charger-Wifi'..."

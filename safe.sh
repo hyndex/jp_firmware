@@ -61,4 +61,4 @@ echo "Please manually reconnect to the device using the new network settings if 
 read -p "Press ENTER to configure WiFi network after ensuring connectivity..."
 
 # Now that NetworkManager is in charge, connect to the specified WiFi network
-safe_run "nmcli dev wifi connect 'Joulepoint-Charger-Wifi' password '1qaz2wsx'" "Connecting to WiFi network 'Joulepoint-Charger-Wifi'..."
+safe_run "nmcli dev wifi connect 'joulepoint' password 'joulepoint123'" "Connecting to WiFi network 'joulepoint'..."
