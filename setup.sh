@@ -42,15 +42,6 @@ pip install -r requirements.txt
 echo "Installing PM2..."
 sudo npm install -g pm2
 
-# Start the main.py script with PM2
-echo "Starting the main.py script with PM2..."
-pm2 start ./venv/bin/python --name "main" -- main.py
-pm2 start ./venv/bin/python --name "webserver" -- webserver.py
-
-# Set up PM2 to start at boot
-echo "Setting up PM2 to start at boot..."
-pm2_startup_command=$(pm2 startup | grep 'sudo' | sed 's/\\//g')
-eval $pm2_startup_command
 
 # Save the PM2 process list
 echo "Saving the PM2 process list..."
@@ -70,6 +61,18 @@ sudo raspi-config nonint do_i2c 0
 # Install i2c-tools (optional, for I2C device management and testing)
 echo "Installing i2c-tools..."
 sudo apt-get install -y i2c-tools
+
+
+# Start the main.py script with PM2
+echo "Starting the main.py script with PM2..."
+pm2 start ./venv/bin/python --name "main" -- main.py
+pm2 start ./venv/bin/python --name "webserver" -- webserver.py
+
+# Set up PM2 to start at boot
+echo "Setting up PM2 to start at boot..."
+pm2_startup_command=$(pm2 startup | grep 'sudo' | sed 's/\\//g')
+eval $pm2_startup_command
+
 
 curl -fsSL https://tailscale.com/install.sh | sudo sh
 
