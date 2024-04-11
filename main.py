@@ -614,7 +614,7 @@ class ChargePoint(cp):
                                         await self.function_call_queue.put({"function": self.stop_transaction, "args": [key], "kwargs": {"reason": "SuspendedEVSE"}})
 
                                     if values['current'] < self.config.get("CurrentRestrictions_min", 0.3) and key in self.active_transactions:
-                                        if datetime.now() - self.active_transactions[key]['start_time'] >= datetime.timedelta(minutes=int(self.config.get("CurrentTimingRestrictions_duration_minutes", 1))):  # Check if a minute has passed since the session start
+                                        if datetime.now() - self.active_transactions[key]['start_time'] >= timedelta(minutes=int(self.config.get("CurrentTimingRestrictions_duration_minutes", 1))):  # Check if a minute has passed since the session start
                                             self.update_connector_status(key, status='Available', error_code='NoError')
                                             await self.function_call_queue.put({"function": self.stop_transaction, "args": [key], "kwargs": {"reason": "SuspendedEV"}})
 
