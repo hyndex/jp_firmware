@@ -125,9 +125,6 @@ class ChargePoint(cp):
         self.reset_data()
 
 
-        
-
-
     async def update_specific_lcd_line(self, line_number, message):
         """
         Update a specific line on the LCD with the given message.
@@ -194,7 +191,6 @@ class ChargePoint(cp):
         self.pi.set_mode(EMERGENCY_STOP_PIN1, pigpio.INPUT)
         self.pi.set_pull_up_down(EMERGENCY_STOP_PIN1, pigpio.PUD_DOWN)
     
-
     async def monitor_emergency_stop_pin(self):
         logging.info('Monitoring emergency stop pin.')
         if is_raspberry_pi():
@@ -218,7 +214,6 @@ class ChargePoint(cp):
                             self.update_connector_status(connector_id=connector_id, status='Available', error_code='NoError')
                     logging.debug("Emergency stop switch OPEN.")
                 await asyncio.sleep(1)  # Non-blocking delay
-
 
     def initialize_csv(self):
         try:
@@ -256,7 +251,6 @@ class ChargePoint(cp):
         with open(CONFIG_FILE, 'w') as file:
             json.dump(self.config, file)
 
-
     def update_connector_status(self, connector_id, status=None, error_code=None):
         status_changed = False
         if status is not None and self.connector_status[connector_id]['status'] != status:
@@ -288,25 +282,6 @@ class ChargePoint(cp):
                 logging.error(f"Error processing function call: {e}")
             finally:
                 self.function_call_queue.task_done()
-
-    # async def process_function_call_queue(self):
-    #     while True:
-    #         function_call = await self.function_call_queue.get()
-    #         logging.info(f"Processing function call: {function_call['function'].__name__}")
-    #         try:
-    #             if asyncio.iscoroutinefunction(function_call["function"]):
-    #                 # Use create_task to ensure the coroutine is scheduled for execution
-    #                 task = asyncio.create_task(function_call["function"](*function_call["args"], **function_call["kwargs"]))
-    #                 await task  # Wait for the task to complete to handle exceptions properly
-    #             else:
-    #                 # For non-coroutine functions, run in executor
-    #                 loop = asyncio.get_event_loop()
-    #                 await loop.run_in_executor(None, function_call["function"], *function_call["args"], **function_call["kwargs"])
-    #         except Exception as e:
-    #             logging.error(f"Error processing function call: {e}")
-    #         finally:
-    #             self.function_call_queue.task_done()
-
 
     async def send_boot_notification(self, retries=0):
         max_retries = int(self.config.get("MaxBootNotificationRetries", 5))
@@ -423,23 +398,11 @@ class ChargePoint(cp):
                         sampled_values.append({"value": str(meter_value.get('energy', 0)), "context": "Sample.Periodic", "format": "Raw", "measurand": data, "location": "EV", "unit": "Wh"})
                     elif data == "Voltage":
                         voltage = meter_value.get('voltage', 0)
-                        if voltage < int(self.config.get("VoltageRestrictions_min", 210)):
-                            self.update_connector_status(connector_id, status='Faulted', error_code='UnderVoltage')
-                            await self.function_call_queue.put({"function": self.stop_transaction, "args": [connector_id], "kwargs": {"reason": "SuspendedEVSE"}})
-                        elif voltage > int(self.config.get("VoltageRestrictions_max", 260)):
-                            self.update_connector_status(connector_id, status='Faulted', error_code='OverVoltage')
-                            await self.function_call_queue.put({"function": self.stop_transaction, "args": [connector_id], "kwargs": {"reason": "SuspendedEVSE"}})
                         sampled_values.append({"value": str(voltage), "format": "Raw", "measurand": data, "unit": "V"})
                     elif data == "Current.Import":
                         current = meter_value.get('current', 0)
-                        if current > int(self.config.get("CurrentRestrictions_max", 20)):
-                            self.update_connector_status(connector_id, status='Faulted', error_code='OverCurrentFailure')
-                            await self.function_call_queue.put({"function": self.stop_transaction, "args": [connector_id], "kwargs": {"reason": "SuspendedEVSE"}})
                         sampled_values.append({"value": str(current), "format": "Raw", "measurand": data, "unit": "A"})
                     elif data == "Power.Active.Import":
-                        if datetime.datetime.now() - transaction['start_time'] >= datetime.timedelta(minutes=int(self.config.get("PowerTimingRestrictions_duration_minutes", 1))):  # Check if a minute has passed since the session start
-                            if meter_value.get('power', 0) < int(self.config.get("PowerTimingRestrictions_threshold", 100)):  # Check if the power is less than 100 watts
-                                await self.function_call_queue.put({"function": self.stop_transaction, "args": [connector_id], "kwargs": {"reason": "SuspendedEVSE"}})
                         sampled_values.append({"value": str(meter_value.get('power', 0)), "format": "Raw", "measurand": data, "unit": "W"})
                 request = call.MeterValuesPayload(connector_id=connector_id, transaction_id=transaction['transaction_id'], meter_value=[{"timestamp": datetime.utcnow().isoformat(), "sampled_value": sampled_values}])
                 await self.call(request)
@@ -593,6 +556,27 @@ class ChargePoint(cp):
                             self.meter[key] = temp
                         else:
                             self.meter[key]['energy'] += (self.meter[key]['power']) * (sleep_interval / 3600)
+
+                        if self.meter[key]['voltage'] < self.config.get("VoltageRestrictions_min", 210):
+                            self.update_connector_status(key, status='Faulted', error_code='UnderVoltage')
+                            if key in self.active_transactions:
+                                await self.function_call_queue.put({"function": self.stop_transaction, "args": [key], "kwargs": {"reason": "SuspendedEVSE"}})
+
+                        if self.meter[key]['voltage'] > self.config.get("VoltageRestrictions_max", 250):
+                            self.update_connector_status(key, status='Faulted', error_code='OverVoltage')
+                            if key in self.active_transactions:
+                                await self.function_call_queue.put({"function": self.stop_transaction, "args": [key], "kwargs": {"reason": "SuspendedEVSE"}})
+
+                        if self.meter[key]['current'] > self.config.get("CurrentRestrictions_max", 32) and key in self.active_transactions:
+                            self.update_connector_status(key, status='Faulted', error_code='OverCurrentFailure')
+                            await self.function_call_queue.put({"function": self.stop_transaction, "args": [key], "kwargs": {"reason": "SuspendedEVSE"}})
+
+                        if self.meter[key]['current'] > self.config.get("CurrentRestrictions_min", 0.3) and key in self.active_transactions:
+                            if datetime.datetime.now() - self.active_transactions[key]['start_time'] >= datetime.timedelta(minutes=int(self.config.get("CurrentTimingRestrictions_duration_minutes", 1))):  # Check if a minute has passed since the session start
+                                self.update_connector_status(key, status='Faulted', error_code='OverCurrentFailure')
+                                await self.function_call_queue.put({"function": self.stop_transaction, "args": [key], "kwargs": {"reason": "SuspendedEVSE"}})
+                        
+
                     logging.info('Meter', self.meter)
                     await asyncio.sleep(sleep_interval)
             except asyncio.CancelledError:
@@ -612,7 +596,28 @@ class ChargePoint(cp):
                                 for key, values in temp.items():
                                     if key in self.meter:
                                         self.meter[key]['energy'] += (values['power']) * (sleep_interval / 3600)
+                                        values['energy'] = self.meter[key]['energy']
                                     self.meter[key] = values
+                                    if values['voltage'] < self.config.get("VoltageRestrictions_min", 210):
+                                        self.update_connector_status(key, status='Faulted', error_code='UnderVoltage')
+                                        if key in self.active_transactions:
+                                            await self.function_call_queue.put({"function": self.stop_transaction, "args": [key], "kwargs": {"reason": "SuspendedEVSE"}})
+
+                                    if values['voltage'] > self.config.get("VoltageRestrictions_max", 250):
+                                        self.update_connector_status(key, status='Faulted', error_code='OverVoltage')
+                                        if key in self.active_transactions:
+                                            await self.function_call_queue.put({"function": self.stop_transaction, "args": [key], "kwargs": {"reason": "SuspendedEVSE"}})
+
+                                    if values['current'] > self.config.get("CurrentRestrictions_max", 32) and key in self.active_transactions:
+                                        self.update_connector_status(key, status='Faulted', error_code='OverCurrentFailure')
+                                        await self.function_call_queue.put({"function": self.stop_transaction, "args": [key], "kwargs": {"reason": "SuspendedEVSE"}})
+
+                                    if values['current'] < self.config.get("CurrentRestrictions_min", 0.3) and key in self.active_transactions:
+                                        if datetime.datetime.now() - self.active_transactions[key]['start_time'] >= datetime.timedelta(minutes=int(self.config.get("CurrentTimingRestrictions_duration_minutes", 1))):  # Check if a minute has passed since the session start
+                                            self.update_connector_status(key, status='Available', error_code='NoError')
+                                            await self.function_call_queue.put({"function": self.stop_transaction, "args": [key], "kwargs": {"reason": "SuspendedEV"}})
+
+
                                     print(self.meter[key])
                         await asyncio.sleep(sleep_interval)
                 except asyncio.CancelledError:
