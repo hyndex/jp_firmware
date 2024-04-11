@@ -102,7 +102,7 @@ sudo systemctl start NetworkManager
 
 # Connect to specified WiFi network
 echo "Connecting to WiFi network 'Joulepoint-Charger-Wifi'..."
-nmcli dev wifi connect 'Joulepoint-Charger-Wifi' password '1qaz2wsx'
+nmcli dev wifi connect 'joulepoint' password 'joulepoint123'
 
 
 echo "Setup completed successfully!"
