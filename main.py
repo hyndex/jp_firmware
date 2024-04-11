@@ -410,7 +410,7 @@ class ChargePoint(cp):
                 self.update_transaction_in_csv(transaction['transaction_id'], current_meter_value=meter_value['energy'])
 
                 energy = meter_value.get('energy', 0)  # Assuming 'energy' key holds the energy value in Wh
-                energy_display_message = f"Energy: {energy}Wh"
+                energy_display_message = f"Energy: {int(energy)}Wh"
                 await self.update_specific_lcd_line(connector_id, energy_display_message)
 
             await asyncio.sleep(int(self.config.get("MeterValueSampleInterval", 60)))
