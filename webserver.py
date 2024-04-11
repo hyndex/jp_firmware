@@ -124,6 +124,34 @@ else:
 
 
 
+# def monitor_emergency_button():
+#     """Monitor the emergency button and perform actions based on its state."""
+#     global hotspot_created
+#     if pi:
+#         last_button_state = pi.read(EMERGENCY_STOP_PIN)
+#         while True:
+#             current_button_state = pi.read(EMERGENCY_STOP_PIN)
+#             # Detect switch from off to on
+#             if current_button_state == 1 and last_button_state == 0:
+#                 print("Switch turned on.")
+#                 if not hotspot_created:
+#                     print("Creating hotspot.")
+#                     create_hotspot_success = create_hotspot()
+#                     if create_hotspot_success:
+#                         hotspot_created = True
+#                     else:
+#                         print("Failed to create hotspot.")
+#             # Detect switch from on to off
+#             elif current_button_state == 0 and last_button_state == 1:
+#                 print("Switch turned off.")
+#                 hotspot_created = False  # Reset the state to allow hotspot creation again
+#                 charger_details = load_charger_details()
+#                 close_hotspot_and_reconnect(interface='wlan0', original_ssid=charger_details['wifi_ssid'],original_password=charger_details['wifi_password'])
+                
+#             last_button_state = current_button_state
+#             time.sleep(5)  # Check button state every 100 ms
+
+
 def monitor_emergency_button():
     """Monitor the emergency button and perform actions based on its state."""
     global hotspot_created
@@ -131,9 +159,9 @@ def monitor_emergency_button():
         last_button_state = pi.read(EMERGENCY_STOP_PIN)
         while True:
             current_button_state = pi.read(EMERGENCY_STOP_PIN)
-            # Detect switch from off to on
-            if current_button_state == 1 and last_button_state == 0:
-                print("Switch turned on.")
+            # Detect switch from off to on (button released)
+            if current_button_state == 0 and last_button_state == 1:
+                print("Button released.")
                 if not hotspot_created:
                     print("Creating hotspot.")
                     create_hotspot_success = create_hotspot()
@@ -141,15 +169,16 @@ def monitor_emergency_button():
                         hotspot_created = True
                     else:
                         print("Failed to create hotspot.")
-            # Detect switch from on to off
-            elif current_button_state == 0 and last_button_state == 1:
-                print("Switch turned off.")
+            # Detect switch from on to off (button pressed)
+            elif current_button_state == 1 and last_button_state == 0:
+                print("Button pressed.")
                 hotspot_created = False  # Reset the state to allow hotspot creation again
                 charger_details = load_charger_details()
-                close_hotspot_and_reconnect(interface='wlan0', original_ssid=charger_details['wifi_ssid'],original_password=charger_details['wifi_password'])
+                close_hotspot_and_reconnect(interface='wlan0', original_ssid=charger_details['wifi_ssid'], original_password=charger_details['wifi_password'])
                 
             last_button_state = current_button_state
-            time.sleep(5)  # Check button state every 100 ms
+            time.sleep(0.1)  # Polling interval was changed to 100ms for more responsive interaction
+
 
 def check_internet_connection():
     """Check if there is an internet connection."""
