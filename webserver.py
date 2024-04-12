@@ -71,7 +71,6 @@ def close_hotspot():
     return True  # Ensuring that the function returns True by default if no conditions are met
 
 
-
 def connect_to_wifi(ssid, password):
     try:
         # Disconnect the current connection on wlan0
@@ -79,8 +78,10 @@ def connect_to_wifi(ssid, password):
             result = subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'], check=True, capture_output=True, text=True)
             print("Disconnect output:", result.stdout)  # Printing output of disconnect command
             print("Disconnect error:", result.stderr)  # Printing error of disconnect command
-        except Exception as e:
-            print('Distaching wlan0 error', e)
+        except subprocess.CalledProcessError as e:
+            print('Disconnecting wlan0 failed:', e)
+            # Decide whether to proceed based on the nature of the disconnect failure
+
         # Connect to the specified WiFi network
         result = subprocess.run(['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password], check=True, capture_output=True, text=True)
         print("Connect output:", result.stdout)  # Printing output of connect command
@@ -89,7 +90,20 @@ def connect_to_wifi(ssid, password):
         return True
     except subprocess.CalledProcessError as e:
         print("Error occurred:", e)  # Printing the exception message
+        print("Error details:", e.stderr)  # Printing detailed error output
+        # Additional handling based on the error
+        if 'Secrets were required, but not provided' in e.stderr:
+            print("Failed to connect to WiFi: Incorrect password.")
+        elif 'No network with SSID' in e.stderr:
+            print("Failed to connect to WiFi: SSID not found.")
+        elif 'Timed out' in e.stderr:
+            print("Failed to connect to WiFi: Connection timed out.")
         return False
+    except Exception as general_error:
+        print('General error in connecting to WiFi:', general_error)
+        return False
+
+
 
 # Flask Routes
 @app.route('/', methods=['GET', 'POST'])
