@@ -45,25 +45,29 @@ def save_json_file(file_path, data):
     with open(file_path, 'w') as file:
         json.dump(data, file, indent=4)
 
-# def create_hotspot():
-#     try:
-#         subprocess.run(['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'ssid', 'Joulepoint-Charger-Hotspot', 'password', 'raspberry'], check=True)
-#         print("Hotspot created successfully.")
-#         return True
-#     except subprocess.CalledProcessError as e:
-#         print(f"Failed to create hotspot: {e}")
-#         return False
+def disconnect_existing_connections():
+    try:
+        subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'], check=True)
+        print("Disconnected all connections on wlan0 successfully.")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to disconnect wlan0: {e}")
+        return False
+
 
 def create_hotspot():
     global HOTSPOT_ACTIVE
     if not HOTSPOT_ACTIVE:
-        try:
-            subprocess.run(['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'ssid', 'Joulepoint-Charger-Hotspot', 'password', 'raspberry'], check=True)
-            print("Hotspot created successfully.")
-            HOTSPOT_ACTIVE = True
-            return True
-        except subprocess.CalledProcessError as e:
-            print(f"Failed to create hotspot: {e}")
+        if disconnect_existing_connections():  # Ensure we're disconnected before trying to create a hotspot
+            try:
+                subprocess.run(['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'con-name', 'Joulepoint-Charger-Hotspot', 'ssid', 'Joulepoint-Charger-Hotspot', 'password', 'raspberry'], check=True)
+                print("Hotspot created successfully.")
+                HOTSPOT_ACTIVE = True
+                return True
+            except subprocess.CalledProcessError as e:
+                print(f"Failed to create hotspot: {e}")
+        else:
+            print("Failed to disconnect existing connections, cannot create hotspot.")
     else:
         print("Hotspot already active.")
     return False
@@ -116,38 +120,36 @@ def connect_to_wifi(ssid, password):
 
         # Force a WiFi rescan to ensure fresh network data
         subprocess.run(['nmcli', 'device', 'wifi', 'rescan'], check=True)
-        
-        # Disconnect any existing connection on wlan0 to avoid conflicts
-        # subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'], check=True)
-        # print("Disconnected wlan0 successfully.")
 
-        # Connect to the specified WiFi network
-        connect_command = ['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password]
-        result = subprocess.run(connect_command, check=True, capture_output=True, text=True)
-        print("Connected successfully to WiFi network.")
-        print("Output:", result.stdout)
-        return True
+        # Disconnect any existing connection on wlan0 to avoid conflicts
+        subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'], check=True)
+        print("Disconnected wlan0 successfully.")
+
+        # Retry connecting to the WiFi network a few times if necessary
+        for attempt in range(3):
+            try:
+                result = subprocess.run(
+                    ['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password],
+                    check=True, capture_output=True, text=True)
+                print("Connected successfully to WiFi network.")
+                print("Output:", result.stdout)
+                return True
+            except subprocess.CalledProcessError as e:
+                print(f"Attempt {attempt + 1}: Failed to connect, retrying...")
+                time.sleep(5)  # Wait for 5 seconds before retrying
 
     except subprocess.CalledProcessError as e:
-        # Check the error output for more specific issues
         print("Failed to execute nmcli command:", str(e))
         print("Error output:", e.stderr)
 
-        if 'permission denied' in e.stderr.lower():
-            print("Error: Permission denied. Check if the script has appropriate privileges.")
-        elif 'no network with ssid' in e.stderr.lower():
-            print("Error: No network with SSID '{}' found. Ensure the SSID is correct and in range.".format(ssid))
-        elif 'secrets were required, but not provided' in e.stderr.lower():
-            print("Error: Incorrect password provided.")
-        elif 'device is not ready' in e.stderr.lower():
-            print("Error: Device wlan0 is not ready. Check the device status with 'nmcli device status'.")
-        elif 'connection activation failed' in e.stderr.lower():
-            print("Error: Connection activation failed. The device may be busy or unable to connect to the specified network.")
-        return False
-
     except subprocess.TimeoutExpired:
         print("Error: Connection attempt timed out.")
-        return False
+
+    except Exception as e:
+        print("An unexpected error occurred:", str(e))
+
+    return False
+
 
     except Exception as e:
         print("An unexpected error occurred:", str(e))
