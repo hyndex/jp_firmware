@@ -81,8 +81,10 @@ def index():
 
         if close_hotspot() and connect_to_wifi(ssid, password):
             flash('WiFi settings updated and connected successfully!', 'success')
+            print('WiFi settings updated and connected successfully!', 'success')
         else:
             flash('Failed to connect to WiFi.', 'danger')
+            print('Failed to connect to WiFi.', 'danger')
 
         return redirect(url_for('index'))
 
