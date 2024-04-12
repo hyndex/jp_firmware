@@ -156,17 +156,17 @@ def monitor_emergency_button():
     while True:
         current_state = pi.read(EMERGENCY_STOP_PIN) if pi else 1
         if current_state != last_state:
-            if current_state == 0:
-                print('current_state',current_state, 'last_state',last_state, 'EMERGENCY_STOP_PIN',EMERGENCY_STOP_PIN)
+            if current_state == 0 and last_state == 1:
+                print('HOTSPOT ON current_state',current_state, 'last_state',last_state, 'EMERGENCY_STOP_PIN',EMERGENCY_STOP_PIN)
                 # close_hotspot()
                 # charger_details = load_json_file(CHARGER_DETAILS_FILE)
                 # ssid = charger_details.get('wifi_ssid', '')
                 # password = charger_details.get('wifi_password', '')
                 # if ssid and password:
                 #     connect_to_wifi(ssid, password)
-            else:
+            elif current_state == 1 and last_state == 0:
                 # create_hotspot()
-                print('current_state',current_state, 'last_state',last_state, 'EMERGENCY_STOP_PIN',EMERGENCY_STOP_PIN)
+                print('HOTSPOT OFF current_state',current_state, 'last_state',last_state, 'EMERGENCY_STOP_PIN',EMERGENCY_STOP_PIN)
             last_state = current_state
         time.sleep(0.1)
 
