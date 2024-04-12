@@ -104,7 +104,7 @@ sudo apt-get install -y dnsmasq
 
 # Connect to specified WiFi network
 echo "Connecting to WiFi network 'joulepoint'..."
-nmcli dev wifi connect 'joulepoint' password 'joulepoint123'
+nmcli dev wifi connect 'Joulepoint-Charger-Wifi' password '1qaz2wsx'
 
 
 echo "Enabling SSH..."
