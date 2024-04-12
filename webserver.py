@@ -54,6 +54,7 @@ def close_hotspot():
     except subprocess.CalledProcessError as e:
         print(f"Failed to close hotspot: {e}")
 
+
 def connect_to_wifi(ssid, password):
     try:
         subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'], check=True)

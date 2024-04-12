@@ -2,9 +2,12 @@
 import platform
 import os
 if platform.system() == 'Linux' and os.path.exists('/proc/device-tree/model'):
-    from RPLCD.i2c import CharLCD
-    # Initialize the LCD (change the expander and address if needed)
-    lcd = CharLCD('PCF8574', 0x27, port=1, cols=20, rows=4, charmap='A02', dotsize=8)
+    try:
+        from RPLCD.i2c import CharLCD
+        # Initialize the LCD (change the expander and address if needed)
+        lcd = CharLCD('PCF8574', 0x27, port=1, cols=20, rows=4, charmap='A02', dotsize=8)
+    except:
+        lcd = {}
 else:
     lcd = {}
 

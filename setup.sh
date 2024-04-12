@@ -2,7 +2,7 @@
 
 # Update system packages
 echo "Updating system packages..."
-sudo apt-get update
+sudo apt-get update -y
 
 # Install Node.js and npm
 echo "Installing Node.js and npm..."
@@ -74,10 +74,7 @@ pm2_startup_command=$(pm2 startup | grep 'sudo' | sed 's/\\//g')
 eval $pm2_startup_command
 
 
-curl -fsSL https://tailscale.com/install.sh | sudo sh
-
-
-
+# curl -fsSL https://tailscale.com/install.sh | sudo sh
 
 
 # Install and configure NetworkManager
