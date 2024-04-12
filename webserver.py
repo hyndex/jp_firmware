@@ -73,37 +73,48 @@ def close_hotspot():
 
 def connect_to_wifi(ssid, password):
     try:
-        # Disconnect the current connection on wlan0
-        try:
-            result = subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'], check=True, capture_output=True, text=True)
-            print("Disconnect output:", result.stdout)  # Printing output of disconnect command
-            print("Disconnect error:", result.stderr)  # Printing error of disconnect command
-        except subprocess.CalledProcessError as e:
-            print('Disconnecting wlan0 failed:', e)
-            # Decide whether to proceed based on the nature of the disconnect failure
+        # Ensure that the wlan0 interface is managed and up
+        subprocess.run(['nmcli', 'device', 'set', 'wlan0', 'managed', 'yes'], check=True)
+        subprocess.run(['ip', 'link', 'set', 'wlan0', 'up'], check=True)
+
+        # Force a WiFi rescan to ensure fresh network data
+        subprocess.run(['nmcli', 'device', 'wifi', 'rescan'], check=True)
+        
+        # Disconnect any existing connection on wlan0 to avoid conflicts
+        subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'], check=True)
+        print("Disconnected wlan0 successfully.")
 
         # Connect to the specified WiFi network
-        result = subprocess.run(['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password], check=True, capture_output=True, text=True)
-        print("Connect output:", result.stdout)  # Printing output of connect command
-        print("Connect error:", result.stderr)  # Printing error of connect command
-        
+        connect_command = ['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password]
+        result = subprocess.run(connect_command, check=True, capture_output=True, text=True)
+        print("Connected successfully to WiFi network.")
+        print("Output:", result.stdout)
         return True
+
     except subprocess.CalledProcessError as e:
-        print("Error occurred:", e)  # Printing the exception message
-        print("Error details:", e.stderr)  # Printing detailed error output
-        # Additional handling based on the error
-        if 'Secrets were required, but not provided' in e.stderr:
-            print("Failed to connect to WiFi: Incorrect password.")
-        elif 'No network with SSID' in e.stderr:
-            print("Failed to connect to WiFi: SSID not found.")
-        elif 'Timed out' in e.stderr:
-            print("Failed to connect to WiFi: Connection timed out.")
-        return False
-    except Exception as general_error:
-        print('General error in connecting to WiFi:', general_error)
+        # Check the error output for more specific issues
+        print("Failed to execute nmcli command:", str(e))
+        print("Error output:", e.stderr)
+
+        if 'permission denied' in e.stderr.lower():
+            print("Error: Permission denied. Check if the script has appropriate privileges.")
+        elif 'no network with ssid' in e.stderr.lower():
+            print("Error: No network with SSID '{}' found. Ensure the SSID is correct and in range.".format(ssid))
+        elif 'secrets were required, but not provided' in e.stderr.lower():
+            print("Error: Incorrect password provided.")
+        elif 'device is not ready' in e.stderr.lower():
+            print("Error: Device wlan0 is not ready. Check the device status with 'nmcli device status'.")
+        elif 'connection activation failed' in e.stderr.lower():
+            print("Error: Connection activation failed. The device may be busy or unable to connect to the specified network.")
         return False
 
+    except subprocess.TimeoutExpired:
+        print("Error: Connection attempt timed out.")
+        return False
 
+    except Exception as e:
+        print("An unexpected error occurred:", str(e))
+        return False
 
 # Flask Routes
 @app.route('/', methods=['GET', 'POST'])
