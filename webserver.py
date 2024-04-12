@@ -168,13 +168,10 @@ def index():
         # Update network connection
         if close_hotspot():
             if connect_to_wifi(ssid, password):
-                flash('WiFi settings updated and connected successfully!', 'success')
                 print('WiFi settings updated and connected successfully!')
             else:
-                flash('Failed to connect to WiFi.', 'danger')
                 print('Failed to connect to WiFi.')
         else:
-            flash('Hotspot was not closed; cannot connect to WiFi.', 'danger')
             print('Hotspot was not closed; cannot connect to WiFi.')
 
         return redirect(url_for('index'))
@@ -204,10 +201,8 @@ def monitor_emergency_button():
                 close_hotspot()
                 charger_details = load_json_file(CHARGER_DETAILS_FILE)
                 if connect_to_wifi(charger_details['wifi_ssid'], charger_details['wifi_password']):
-                    flash('WiFi settings updated and connected successfully!', 'success')
                     print('WiFi settings updated and connected successfully!')
                 else:
-                    flash('Failed to connect to WiFi.', 'danger')
                     print('Failed to connect to WiFi.')
                 print('WiFi settings updated and connected successfully!', charger_details)
             last_state = current_state  # Update last_state only after handling the change
