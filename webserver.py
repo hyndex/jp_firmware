@@ -48,13 +48,28 @@ def create_hotspot():
         return False
 
 def close_hotspot():
+    # Check if the hotspot is currently active
     try:
+        result = subprocess.run(['nmcli', 'con', 'show', '--active'], capture_output=True, text=True)
+        if 'PiHotspot' not in result.stdout:
+            print("No hotspot is currently active.")
+            return True  # Return True since there is no active hotspot to close
+
+        # If active, try to bring it down
         subprocess.run(['nmcli', 'con', 'down', 'PiHotspot'], check=True)
         print("Hotspot closed successfully.")
+        return True  # Return True upon successful closure
+
     except subprocess.CalledProcessError as e:
         print(f"Failed to close hotspot: {e}")
+        return False  # Return False if the command failed
+
     except Exception as e:
-        print('Hotspot Closing Error',e)
+        print('Unexpected error when closing hotspot:', e)
+        return False  # Return False if an unexpected error occurs
+
+    return True  # Ensuring that the function returns True by default if no conditions are met
+
 
 
 def connect_to_wifi(ssid, password):
