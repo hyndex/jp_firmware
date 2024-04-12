@@ -48,10 +48,10 @@ def save_json_file(file_path, data):
 # def create_hotspot():
 #     try:
 #         subprocess.run(['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'ssid', 'PiHotspot', 'password', 'raspberry'], check=True)
-#         logging.info("Hotspot created successfully.")
+#         print("Hotspot created successfully.")
 #         return True
 #     except subprocess.CalledProcessError as e:
-#         logging.info(f"Failed to create hotspot: {e}")
+#         print(f"Failed to create hotspot: {e}")
 #         return False
 
 def create_hotspot():
@@ -59,13 +59,13 @@ def create_hotspot():
     if not HOTSPOT_ACTIVE:
         try:
             subprocess.run(['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'ssid', 'PiHotspot', 'password', 'raspberry'], check=True)
-            logging.info("Hotspot created successfully.")
+            print("Hotspot created successfully.")
             HOTSPOT_ACTIVE = True
             return True
         except subprocess.CalledProcessError as e:
-            logging.info(f"Failed to create hotspot: {e}")
+            print(f"Failed to create hotspot: {e}")
     else:
-        logging.info("Hotspot already active.")
+        print("Hotspot already active.")
     return False
 
 
@@ -74,20 +74,20 @@ def create_hotspot():
 #     try:
 #         result = subprocess.run(['nmcli', 'con', 'show', '--active'], capture_output=True, text=True)
 #         if 'PiHotspot' not in result.stdout:
-#             logging.info("No hotspot is currently active.")
+#             print("No hotspot is currently active.")
 #             return True  # Return True since there is no active hotspot to close
 
 #         # If active, try to bring it down
 #         subprocess.run(['nmcli', 'con', 'down', 'PiHotspot'], check=True)
-#         logging.info("Hotspot closed successfully.")
+#         print("Hotspot closed successfully.")
 #         return True  # Return True upon successful closure
 
 #     except subprocess.CalledProcessError as e:
-#         logging.info(f"Failed to close hotspot: {e}")
+#         print(f"Failed to close hotspot: {e}")
 #         return False  # Return False if the command failed
 
 #     except Exception as e:
-#         logging.info('Unexpected error when closing hotspot:', e)
+#         print('Unexpected error when closing hotspot:', e)
 #         return False  # Return False if an unexpected error occurs
 
 #     return True  # Ensuring that the function returns True by default if no conditions are met
@@ -97,14 +97,14 @@ def close_hotspot():
     if HOTSPOT_ACTIVE:
         try:
             subprocess.run(['nmcli', 'con', 'down', 'PiHotspot'], check=True)
-            logging.info("Hotspot closed successfully.")
+            print("Hotspot closed successfully.")
             HOTSPOT_ACTIVE = False
             return True
         except subprocess.CalledProcessError as e:
-            logging.info(f"Failed to close hotspot: {e}")
+            print(f"Failed to close hotspot: {e}")
             return False
     else:
-        logging.info("No hotspot is currently active.")
+        print("No hotspot is currently active.")
         return True
 
 
@@ -119,38 +119,38 @@ def connect_to_wifi(ssid, password):
         
         # Disconnect any existing connection on wlan0 to avoid conflicts
         # subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'], check=True)
-        # logging.info("Disconnected wlan0 successfully.")
+        # print("Disconnected wlan0 successfully.")
 
         # Connect to the specified WiFi network
         connect_command = ['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password]
         result = subprocess.run(connect_command, check=True, capture_output=True, text=True)
-        logging.info("Connected successfully to WiFi network.")
-        logging.info("Output:", result.stdout)
+        print("Connected successfully to WiFi network.")
+        print("Output:", result.stdout)
         return True
 
     except subprocess.CalledProcessError as e:
         # Check the error output for more specific issues
-        logging.info("Failed to execute nmcli command:", str(e))
-        logging.info("Error output:", e.stderr)
+        print("Failed to execute nmcli command:", str(e))
+        print("Error output:", e.stderr)
 
         if 'permission denied' in e.stderr.lower():
-            logging.info("Error: Permission denied. Check if the script has appropriate privileges.")
+            print("Error: Permission denied. Check if the script has appropriate privileges.")
         elif 'no network with ssid' in e.stderr.lower():
-            logging.info("Error: No network with SSID '{}' found. Ensure the SSID is correct and in range.".format(ssid))
+            print("Error: No network with SSID '{}' found. Ensure the SSID is correct and in range.".format(ssid))
         elif 'secrets were required, but not provided' in e.stderr.lower():
-            logging.info("Error: Incorrect password provided.")
+            print("Error: Incorrect password provided.")
         elif 'device is not ready' in e.stderr.lower():
-            logging.info("Error: Device wlan0 is not ready. Check the device status with 'nmcli device status'.")
+            print("Error: Device wlan0 is not ready. Check the device status with 'nmcli device status'.")
         elif 'connection activation failed' in e.stderr.lower():
-            logging.info("Error: Connection activation failed. The device may be busy or unable to connect to the specified network.")
+            print("Error: Connection activation failed. The device may be busy or unable to connect to the specified network.")
         return False
 
     except subprocess.TimeoutExpired:
-        logging.info("Error: Connection attempt timed out.")
+        print("Error: Connection attempt timed out.")
         return False
 
     except Exception as e:
-        logging.info("An unexpected error occurred:", str(e))
+        print("An unexpected error occurred:", str(e))
         return False
 
 # Flask Routes
@@ -173,11 +173,11 @@ def index():
         # Update network connection
         if close_hotspot():
             if connect_to_wifi(ssid, password):
-                logging.info('WiFi settings updated and connected successfully!')
+                print('WiFi settings updated and connected successfully!')
             else:
-                logging.info('Failed to connect to WiFi.')
+                print('Failed to connect to WiFi.')
         else:
-            logging.info('Hotspot was not closed; cannot connect to WiFi.')
+            print('Hotspot was not closed; cannot connect to WiFi.')
 
         return redirect(url_for('index'))
 
@@ -199,17 +199,17 @@ def monitor_emergency_button():
         confirmed_state = pi.read(EMERGENCY_STOP_PIN) if pi else 1
         if confirmed_state == current_state and current_state != last_state:
             if current_state == 0:  # Assuming 0 is pressed state
-                logging.info('HOTSPOT ON current_state', current_state, 'last_state', last_state, 'EMERGENCY_STOP_PIN', EMERGENCY_STOP_PIN)
+                print('HOTSPOT ON current_state', current_state, 'last_state', last_state, 'EMERGENCY_STOP_PIN', EMERGENCY_STOP_PIN)
                 create_hotspot()
             elif current_state == 1:  # Assuming 1 is released state
-                logging.info('HOTSPOT OFF current_state', current_state, 'last_state', last_state, 'EMERGENCY_STOP_PIN', EMERGENCY_STOP_PIN)
+                print('HOTSPOT OFF current_state', current_state, 'last_state', last_state, 'EMERGENCY_STOP_PIN', EMERGENCY_STOP_PIN)
                 close_hotspot()
                 charger_details = load_json_file(CHARGER_DETAILS_FILE)
                 if connect_to_wifi(charger_details['wifi_ssid'], charger_details['wifi_password']):
-                    logging.info('WiFi settings updated and connected successfully!')
+                    print('WiFi settings updated and connected successfully!')
                 else:
-                    logging.info('Failed to connect to WiFi.')
-                logging.info('WiFi settings updated and connected successfully!', charger_details)
+                    print('Failed to connect to WiFi.')
+                print('WiFi settings updated and connected successfully!', charger_details)
             last_state = current_state  # Update last_state only after handling the change
             time.sleep(debounce_time)  # Debounce delay
 
