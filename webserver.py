@@ -75,10 +75,12 @@ def close_hotspot():
 def connect_to_wifi(ssid, password):
     try:
         # Disconnect the current connection on wlan0
-        result = subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'], check=True, capture_output=True, text=True)
-        print("Disconnect output:", result.stdout)  # Printing output of disconnect command
-        print("Disconnect error:", result.stderr)  # Printing error of disconnect command
-        
+        try:
+            result = subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'], check=True, capture_output=True, text=True)
+            print("Disconnect output:", result.stdout)  # Printing output of disconnect command
+            print("Disconnect error:", result.stderr)  # Printing error of disconnect command
+        except Exception as e:
+            print('Distaching wlan0 error', e)
         # Connect to the specified WiFi network
         result = subprocess.run(['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password], check=True, capture_output=True, text=True)
         print("Connect output:", result.stdout)  # Printing output of connect command
