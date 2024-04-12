@@ -77,9 +77,7 @@ eval $pm2_startup_command
 curl -fsSL https://tailscale.com/install.sh | sudo sh
 
 
-# Restart dnsmasq to apply the changes
-echo "Restarting dnsmasq to apply configurations..."
-# sudo systemctl restart dnsmasq
+
 
 
 # Install and configure NetworkManager
@@ -103,11 +101,38 @@ sudo apt-get install -y dnsmasq
 # Configure dnsmasq to resolve jp.local to the Raspberry Pi's IP address in the hotspot network
 # echo "Configuring dnsmasq for jp.local resolution..."
 # echo "address=/jp.local/10.42.0.1" | sudo tee -a /etc/dnsmasq.conf
-
+# Restart dnsmasq to apply the changes
+# echo "Restarting dnsmasq to apply configurations..."
+# sudo systemctl restart dnsmasq
 
 # Connect to specified WiFi network
-echo "Connecting to WiFi network 'Joulepoint-Charger-Wifi'..."
+echo "Connecting to WiFi network 'joulepoint'..."
 nmcli dev wifi connect 'joulepoint' password 'joulepoint123'
+
+
+echo "Enabling SSH..."
+sudo systemctl enable ssh
+sudo systemctl start ssh
+
+# Set up USB for Ethernet
+echo "Setting up USB for Ethernet..."
+echo "dtoverlay=dwc2" | sudo tee -a /boot/config.txt
+echo "modules-load=dwc2,g_ether" | sudo tee -a /boot/cmdline.txt
+
+# Setting up a static IP for usb0 interface might be necessary depending on your setup
+echo "Configuring static IP for usb0 (optional)..."
+echo "interface usb0" | sudo tee -a /etc/dhcpcd.conf
+echo "static ip_address=192.168.7.2/24" | sudo tee -a /etc/dhcpcd.conf
+echo "static routers=192.168.7.1" | sudo tee -a /etc/dhcpcd.conf
+echo "static domain_name_servers=192.168.7.1" | sudo tee -a /etc/dhcpcd.conf
+
+# Restart dhcpcd to apply changes
+sudo systemctl restart dhcpcd
+
+# Instructions for the user
+echo "SSH over USB setup complete. You can now SSH into your Pi via USB."
+echo "On your host machine, you may need to manually set your USB Ethernet interface IP to 192.168.7.1"
+echo "SSH into your Pi using: ssh pi@192.168.7.2"
 
 
 echo "Setup completed successfully!"
