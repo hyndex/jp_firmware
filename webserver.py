@@ -151,9 +151,6 @@ def connect_to_wifi(ssid, password):
     return False
 
 
-    except Exception as e:
-        print("An unexpected error occurred:", str(e))
-        return False
 
 # Flask Routes
 @app.route('/', methods=['GET', 'POST'])
