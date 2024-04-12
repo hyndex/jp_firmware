@@ -53,6 +53,8 @@ def close_hotspot():
         print("Hotspot closed successfully.")
     except subprocess.CalledProcessError as e:
         print(f"Failed to close hotspot: {e}")
+    except Exception as e:
+        print('Hotspot Closing Error',e)
 
 
 def connect_to_wifi(ssid, password):
