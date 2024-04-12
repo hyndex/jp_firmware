@@ -81,6 +81,7 @@ def index():
         server_url = request.form['server_url']
         charger_id = request.form['charger_id']
 
+        # Save the new settings
         save_json_file(CHARGER_DETAILS_FILE, {
             'wifi_ssid': ssid,
             'wifi_password': password,
@@ -88,12 +89,17 @@ def index():
             'charger_id': charger_id
         })
 
-        if close_hotspot() and connect_to_wifi(ssid, password):
-            flash('WiFi settings updated and connected successfully!', 'success')
-            print('WiFi settings updated and connected successfully!', 'success')
+        # Update network connection
+        if close_hotspot():
+            if connect_to_wifi(ssid, password):
+                flash('WiFi settings updated and connected successfully!', 'success')
+                print('WiFi settings updated and connected successfully!')
+            else:
+                flash('Failed to connect to WiFi.', 'danger')
+                print('Failed to connect to WiFi.')
         else:
-            flash('Failed to connect to WiFi.', 'danger')
-            print('Failed to connect to WiFi.', 'danger')
+            flash('Hotspot was not closed; cannot connect to WiFi.', 'danger')
+            print('Hotspot was not closed; cannot connect to WiFi.')
 
         return redirect(url_for('index'))
 
