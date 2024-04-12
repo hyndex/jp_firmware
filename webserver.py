@@ -151,24 +151,49 @@ def index():
     return render_template('index.html', charger_details=charger_details)
 
 # Button monitoring function
+# def monitor_emergency_button():
+#     last_state = pi.read(EMERGENCY_STOP_PIN) if pi else 1
+#     while True:
+#         current_state = pi.read(EMERGENCY_STOP_PIN) if pi else 1
+#         if current_state != last_state:
+#             if current_state == 0 and last_state == 1:
+#                 print('HOTSPOT ON current_state',current_state, 'last_state',last_state, 'EMERGENCY_STOP_PIN',EMERGENCY_STOP_PIN)
+#                 # close_hotspot()
+#                 # charger_details = load_json_file(CHARGER_DETAILS_FILE)
+#                 # ssid = charger_details.get('wifi_ssid', '')
+#                 # password = charger_details.get('wifi_password', '')
+#                 # if ssid and password:
+#                 #     connect_to_wifi(ssid, password)
+#             elif current_state == 1 and last_state == 0:
+#                 # create_hotspot()
+#                 print('HOTSPOT OFF current_state',current_state, 'last_state',last_state, 'EMERGENCY_STOP_PIN',EMERGENCY_STOP_PIN)
+#             last_state = current_state
+#         time.sleep(0.1)
+
+
+import time
+
+# Button monitoring function
 def monitor_emergency_button():
     last_state = pi.read(EMERGENCY_STOP_PIN) if pi else 1
     while True:
         current_state = pi.read(EMERGENCY_STOP_PIN) if pi else 1
         if current_state != last_state:
-            if current_state == 0 and last_state == 1:
-                print('HOTSPOT ON current_state',current_state, 'last_state',last_state, 'EMERGENCY_STOP_PIN',EMERGENCY_STOP_PIN)
-                # close_hotspot()
-                # charger_details = load_json_file(CHARGER_DETAILS_FILE)
-                # ssid = charger_details.get('wifi_ssid', '')
-                # password = charger_details.get('wifi_password', '')
-                # if ssid and password:
-                #     connect_to_wifi(ssid, password)
-            elif current_state == 1 and last_state == 0:
-                # create_hotspot()
-                print('HOTSPOT OFF current_state',current_state, 'last_state',last_state, 'EMERGENCY_STOP_PIN',EMERGENCY_STOP_PIN)
-            last_state = current_state
-        time.sleep(0.1)
+            if current_state == 0:  # Assuming 0 is pressed state
+                print('HOTSPOT ON current_state', current_state, 'last_state', last_state, 'EMERGENCY_STOP_PIN', EMERGENCY_STOP_PIN)
+                # Logic to handle hotspot activation or any other task
+            elif current_state == 1:  # Assuming 1 is released state
+                print('HOTSPOT OFF current_state', current_state, 'last_state', last_state, 'EMERGENCY_STOP_PIN', EMERGENCY_STOP_PIN)
+                # Logic to handle hotspot deactivation or any other task
+            last_state = current_state  # Update last_state only after handling the change
+            time.sleep(5)
+        time.sleep(0.1)  # This delay might need to be adjusted based on actual switch behavior
+
+if __name__ == '__main__':
+    if pi:
+        threading.Thread(target=monitor_emergency_button, daemon=True).start()
+    app.run(host='0.0.0.0', port=5000, debug=True)
+
 
 if __name__ == '__main__':
     if pi:
