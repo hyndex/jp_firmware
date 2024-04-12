@@ -12,7 +12,7 @@ else:
     lcd = {}
 
 def is_raspberry_pi():
-    if platform.system() == 'Linux':
+    if platform.system() == 'Linux' and lcd != {}:
         try:
             with open('/proc/device-tree/model', 'r') as file:
                 model_info = file.read()
