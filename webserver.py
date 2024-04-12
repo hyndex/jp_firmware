@@ -81,8 +81,8 @@ def connect_to_wifi(ssid, password):
         subprocess.run(['nmcli', 'device', 'wifi', 'rescan'], check=True)
         
         # Disconnect any existing connection on wlan0 to avoid conflicts
-        subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'], check=True)
-        print("Disconnected wlan0 successfully.")
+        # subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'], check=True)
+        # print("Disconnected wlan0 successfully.")
 
         # Connect to the specified WiFi network
         connect_command = ['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password]
@@ -157,14 +157,16 @@ def monitor_emergency_button():
         current_state = pi.read(EMERGENCY_STOP_PIN) if pi else 1
         if current_state != last_state:
             if current_state == 0:
-                close_hotspot()
-                charger_details = load_json_file(CHARGER_DETAILS_FILE)
-                ssid = charger_details.get('wifi_ssid', '')
-                password = charger_details.get('wifi_password', '')
-                if ssid and password:
-                    connect_to_wifi(ssid, password)
+                print('current_state',current_state, 'last_state',last_state, 'EMERGENCY_STOP_PIN',EMERGENCY_STOP_PIN)
+                # close_hotspot()
+                # charger_details = load_json_file(CHARGER_DETAILS_FILE)
+                # ssid = charger_details.get('wifi_ssid', '')
+                # password = charger_details.get('wifi_password', '')
+                # if ssid and password:
+                #     connect_to_wifi(ssid, password)
             else:
-                create_hotspot()
+                # create_hotspot()
+                print('current_state',current_state, 'last_state',last_state, 'EMERGENCY_STOP_PIN',EMERGENCY_STOP_PIN)
             last_state = current_state
         time.sleep(0.1)
 

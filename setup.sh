@@ -43,10 +43,6 @@ echo "Installing PM2..."
 sudo npm install -g pm2
 
 
-# Save the PM2 process list
-echo "Saving the PM2 process list..."
-pm2 save
-
 # Enable serial interface
 echo "Enabling serial interface..."
 sudo sed -i 's/^#enable_uart=1/enable_uart=1/' /boot/config.txt
@@ -67,6 +63,12 @@ sudo apt-get install -y i2c-tools
 echo "Starting the main.py script with PM2..."
 pm2 start ./venv/bin/python --name "main" -- main.py
 pm2 start ./venv/bin/python --name "webserver" -- webserver.py
+
+
+# Save the PM2 process list
+echo "Saving the PM2 process list..."
+pm2 save
+
 
 # Set up PM2 to start at boot
 echo "Setting up PM2 to start at boot..."
@@ -107,29 +109,29 @@ echo "Connecting to WiFi network 'joulepoint'..."
 nmcli dev wifi connect 'Joulepoint-Charger-Wifi' password '1qaz2wsx'
 
 
-echo "Enabling SSH..."
-sudo systemctl enable ssh
-sudo systemctl start ssh
+# echo "Enabling SSH..."
+# sudo systemctl enable ssh
+# sudo systemctl start ssh
 
-# Set up USB for Ethernet
-echo "Setting up USB for Ethernet..."
-echo "dtoverlay=dwc2" | sudo tee -a /boot/config.txt
-echo "modules-load=dwc2,g_ether" | sudo tee -a /boot/cmdline.txt
+# # Set up USB for Ethernet
+# echo "Setting up USB for Ethernet..."
+# echo "dtoverlay=dwc2" | sudo tee -a /boot/config.txt
+# echo "modules-load=dwc2,g_ether" | sudo tee -a /boot/cmdline.txt
 
-# Setting up a static IP for usb0 interface might be necessary depending on your setup
-echo "Configuring static IP for usb0 (optional)..."
-echo "interface usb0" | sudo tee -a /etc/dhcpcd.conf
-echo "static ip_address=192.168.7.2/24" | sudo tee -a /etc/dhcpcd.conf
-echo "static routers=192.168.7.1" | sudo tee -a /etc/dhcpcd.conf
-echo "static domain_name_servers=192.168.7.1" | sudo tee -a /etc/dhcpcd.conf
+# # Setting up a static IP for usb0 interface might be necessary depending on your setup
+# echo "Configuring static IP for usb0 (optional)..."
+# echo "interface usb0" | sudo tee -a /etc/dhcpcd.conf
+# echo "static ip_address=192.168.7.2/24" | sudo tee -a /etc/dhcpcd.conf
+# echo "static routers=192.168.7.1" | sudo tee -a /etc/dhcpcd.conf
+# echo "static domain_name_servers=192.168.7.1" | sudo tee -a /etc/dhcpcd.conf
 
-# Restart dhcpcd to apply changes
-sudo systemctl restart dhcpcd
+# # Restart dhcpcd to apply changes
+# sudo systemctl restart dhcpcd
 
-# Instructions for the user
-echo "SSH over USB setup complete. You can now SSH into your Pi via USB."
-echo "On your host machine, you may need to manually set your USB Ethernet interface IP to 192.168.7.1"
-echo "SSH into your Pi using: ssh pi@192.168.7.2"
+# # Instructions for the user
+# echo "SSH over USB setup complete. You can now SSH into your Pi via USB."
+# echo "On your host machine, you may need to manually set your USB Ethernet interface IP to 192.168.7.1"
+# echo "SSH into your Pi using: ssh pi@192.168.7.2"
 
 
 echo "Setup completed successfully!"
