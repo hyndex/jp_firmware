@@ -171,28 +171,34 @@ def index():
 #         time.sleep(0.1)
 
 
-import time
-
 # Button monitoring function
 def monitor_emergency_button():
     last_state = pi.read(EMERGENCY_STOP_PIN) if pi else 1
+    debounce_time = 0.1  # 100 milliseconds
+
     while True:
         current_state = pi.read(EMERGENCY_STOP_PIN) if pi else 1
-        if current_state != last_state:
+        time.sleep(0.01)  # Short sleep to reduce CPU load
+
+        # Read again after a short delay to confirm the state
+        confirmed_state = pi.read(EMERGENCY_STOP_PIN) if pi else 1
+        if confirmed_state == current_state and current_state != last_state:
             if current_state == 0:  # Assuming 0 is pressed state
                 print('HOTSPOT ON current_state', current_state, 'last_state', last_state, 'EMERGENCY_STOP_PIN', EMERGENCY_STOP_PIN)
-                # Logic to handle hotspot activation or any other task
+                # create_hotspot()
             elif current_state == 1:  # Assuming 1 is released state
                 print('HOTSPOT OFF current_state', current_state, 'last_state', last_state, 'EMERGENCY_STOP_PIN', EMERGENCY_STOP_PIN)
-                # Logic to handle hotspot deactivation or any other task
+                # close_hotspot()
+                charger_details = load_json_file(CHARGER_DETAILS_FILE)
+                # if connect_to_wifi(charger_details['wifi_ssid'], charger_details['wifi_password']):
+                    # flash('WiFi settings updated and connected successfully!', 'success')
+                    # print('WiFi settings updated and connected successfully!')
+                # else:
+                #     flash('Failed to connect to WiFi.', 'danger')
+                #     print('Failed to connect to WiFi.')
+                print('WiFi settings updated and connected successfully!', charger_details)
             last_state = current_state  # Update last_state only after handling the change
-            time.sleep(5)
-        time.sleep(0.1)  # This delay might need to be adjusted based on actual switch behavior
-
-if __name__ == '__main__':
-    if pi:
-        threading.Thread(target=monitor_emergency_button, daemon=True).start()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+            time.sleep(debounce_time)  # Debounce delay
 
 
 if __name__ == '__main__':
