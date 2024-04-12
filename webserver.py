@@ -47,7 +47,7 @@ def save_json_file(file_path, data):
 
 # def create_hotspot():
 #     try:
-#         subprocess.run(['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'ssid', 'PiHotspot', 'password', 'raspberry'], check=True)
+#         subprocess.run(['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'ssid', 'PiHotspot', 'password', 'load_json_file(CHARGER_DETAILS_FILE)['wifi_ssid']'], check=True)
 #         print("Hotspot created successfully.")
 #         return True
 #     except subprocess.CalledProcessError as e:
@@ -58,7 +58,7 @@ def create_hotspot():
     global HOTSPOT_ACTIVE
     if not HOTSPOT_ACTIVE:
         try:
-            subprocess.run(['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'ssid', 'PiHotspot', 'password', 'raspberry'], check=True)
+            subprocess.run(['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'ssid', load_json_file(CHARGER_DETAILS_FILE)['wifi_ssid'], 'password', load_json_file(CHARGER_DETAILS_FILE)['wifi_ssid']], check=True)
             print("Hotspot created successfully.")
             HOTSPOT_ACTIVE = True
             return True
@@ -96,7 +96,7 @@ def close_hotspot():
     global HOTSPOT_ACTIVE
     if HOTSPOT_ACTIVE:
         try:
-            subprocess.run(['nmcli', 'con', 'down', 'PiHotspot'], check=True)
+            subprocess.run(['nmcli', 'con', 'down', load_json_file(CHARGER_DETAILS_FILE)['wifi_ssid']], check=True)
             print("Hotspot closed successfully.")
             HOTSPOT_ACTIVE = False
             return True
@@ -205,7 +205,7 @@ def monitor_emergency_button():
                 print('HOTSPOT OFF current_state', current_state, 'last_state', last_state, 'EMERGENCY_STOP_PIN', EMERGENCY_STOP_PIN)
                 close_hotspot()
                 charger_details = load_json_file(CHARGER_DETAILS_FILE)
-                if connect_to_wifi(charger_details['wifi_ssid'], charger_details['wifi_password']):
+                if connect_to_wifi(load_json_file(CHARGER_DETAILS_FILE)['wifi_ssid'], load_json_file(CHARGER_DETAILS_FILE)['wifi_password']):
                     print('WiFi settings updated and connected successfully!')
                 else:
                     print('Failed to connect to WiFi.')
