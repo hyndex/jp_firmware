@@ -8,6 +8,8 @@ import time
 
 # Constants
 CHARGER_DETAILS_FILE = 'charger.json'
+HOTSPOT_ACTIVE = False  # Global variable to track hotspot state
+
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -38,37 +40,67 @@ def save_json_file(file_path, data):
     with open(file_path, 'w') as file:
         json.dump(data, file, indent=4)
 
+# def create_hotspot():
+#     try:
+#         subprocess.run(['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'ssid', 'PiHotspot', 'password', 'raspberry'], check=True)
+#         print("Hotspot created successfully.")
+#         return True
+#     except subprocess.CalledProcessError as e:
+#         print(f"Failed to create hotspot: {e}")
+#         return False
+
 def create_hotspot():
-    try:
-        subprocess.run(['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'ssid', 'PiHotspot', 'password', 'raspberry'], check=True)
-        print("Hotspot created successfully.")
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"Failed to create hotspot: {e}")
-        return False
+    global HOTSPOT_ACTIVE
+    if not HOTSPOT_ACTIVE:
+        try:
+            subprocess.run(['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'ssid', 'PiHotspot', 'password', 'raspberry'], check=True)
+            print("Hotspot created successfully.")
+            HOTSPOT_ACTIVE = True
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to create hotspot: {e}")
+    else:
+        print("Hotspot already active.")
+    return False
+
+
+# def close_hotspot():
+#     # Check if the hotspot is currently active
+#     try:
+#         result = subprocess.run(['nmcli', 'con', 'show', '--active'], capture_output=True, text=True)
+#         if 'PiHotspot' not in result.stdout:
+#             print("No hotspot is currently active.")
+#             return True  # Return True since there is no active hotspot to close
+
+#         # If active, try to bring it down
+#         subprocess.run(['nmcli', 'con', 'down', 'PiHotspot'], check=True)
+#         print("Hotspot closed successfully.")
+#         return True  # Return True upon successful closure
+
+#     except subprocess.CalledProcessError as e:
+#         print(f"Failed to close hotspot: {e}")
+#         return False  # Return False if the command failed
+
+#     except Exception as e:
+#         print('Unexpected error when closing hotspot:', e)
+#         return False  # Return False if an unexpected error occurs
+
+#     return True  # Ensuring that the function returns True by default if no conditions are met
 
 def close_hotspot():
-    # Check if the hotspot is currently active
-    try:
-        result = subprocess.run(['nmcli', 'con', 'show', '--active'], capture_output=True, text=True)
-        if 'PiHotspot' not in result.stdout:
-            print("No hotspot is currently active.")
-            return True  # Return True since there is no active hotspot to close
-
-        # If active, try to bring it down
-        subprocess.run(['nmcli', 'con', 'down', 'PiHotspot'], check=True)
-        print("Hotspot closed successfully.")
-        return True  # Return True upon successful closure
-
-    except subprocess.CalledProcessError as e:
-        print(f"Failed to close hotspot: {e}")
-        return False  # Return False if the command failed
-
-    except Exception as e:
-        print('Unexpected error when closing hotspot:', e)
-        return False  # Return False if an unexpected error occurs
-
-    return True  # Ensuring that the function returns True by default if no conditions are met
+    global HOTSPOT_ACTIVE
+    if HOTSPOT_ACTIVE:
+        try:
+            subprocess.run(['nmcli', 'con', 'down', 'PiHotspot'], check=True)
+            print("Hotspot closed successfully.")
+            HOTSPOT_ACTIVE = False
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to close hotspot: {e}")
+            return False
+    else:
+        print("No hotspot is currently active.")
+        return True
 
 
 def connect_to_wifi(ssid, password):
@@ -150,29 +182,10 @@ def index():
     charger_details = load_json_file(CHARGER_DETAILS_FILE)
     return render_template('index.html', charger_details=charger_details)
 
-# Button monitoring function
-# def monitor_emergency_button():
-#     last_state = pi.read(EMERGENCY_STOP_PIN) if pi else 1
-#     while True:
-#         current_state = pi.read(EMERGENCY_STOP_PIN) if pi else 1
-#         if current_state != last_state:
-#             if current_state == 0 and last_state == 1:
-#                 print('HOTSPOT ON current_state',current_state, 'last_state',last_state, 'EMERGENCY_STOP_PIN',EMERGENCY_STOP_PIN)
-#                 # close_hotspot()
-#                 # charger_details = load_json_file(CHARGER_DETAILS_FILE)
-#                 # ssid = charger_details.get('wifi_ssid', '')
-#                 # password = charger_details.get('wifi_password', '')
-#                 # if ssid and password:
-#                 #     connect_to_wifi(ssid, password)
-#             elif current_state == 1 and last_state == 0:
-#                 # create_hotspot()
-#                 print('HOTSPOT OFF current_state',current_state, 'last_state',last_state, 'EMERGENCY_STOP_PIN',EMERGENCY_STOP_PIN)
-#             last_state = current_state
-#         time.sleep(0.1)
-
 
 # Button monitoring function
 def monitor_emergency_button():
+    global HOTSPOT_ACTIVE
     last_state = pi.read(EMERGENCY_STOP_PIN) if pi else 1
     debounce_time = 0.1  # 100 milliseconds
 
@@ -185,17 +198,17 @@ def monitor_emergency_button():
         if confirmed_state == current_state and current_state != last_state:
             if current_state == 0:  # Assuming 0 is pressed state
                 print('HOTSPOT ON current_state', current_state, 'last_state', last_state, 'EMERGENCY_STOP_PIN', EMERGENCY_STOP_PIN)
-                # create_hotspot()
+                create_hotspot()
             elif current_state == 1:  # Assuming 1 is released state
                 print('HOTSPOT OFF current_state', current_state, 'last_state', last_state, 'EMERGENCY_STOP_PIN', EMERGENCY_STOP_PIN)
-                # close_hotspot()
+                close_hotspot()
                 charger_details = load_json_file(CHARGER_DETAILS_FILE)
-                # if connect_to_wifi(charger_details['wifi_ssid'], charger_details['wifi_password']):
-                    # flash('WiFi settings updated and connected successfully!', 'success')
-                    # print('WiFi settings updated and connected successfully!')
-                # else:
-                #     flash('Failed to connect to WiFi.', 'danger')
-                #     print('Failed to connect to WiFi.')
+                if connect_to_wifi(charger_details['wifi_ssid'], charger_details['wifi_password']):
+                    flash('WiFi settings updated and connected successfully!', 'success')
+                    print('WiFi settings updated and connected successfully!')
+                else:
+                    flash('Failed to connect to WiFi.', 'danger')
+                    print('Failed to connect to WiFi.')
                 print('WiFi settings updated and connected successfully!', charger_details)
             last_state = current_state  # Update last_state only after handling the change
             time.sleep(debounce_time)  # Debounce delay
