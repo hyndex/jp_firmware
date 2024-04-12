@@ -57,10 +57,19 @@ def close_hotspot():
 
 def connect_to_wifi(ssid, password):
     try:
-        subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'], check=True)
-        subprocess.run(['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password], check=True)
+        # Disconnect the current connection on wlan0
+        result = subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'], check=True, capture_output=True, text=True)
+        print("Disconnect output:", result.stdout)  # Printing output of disconnect command
+        print("Disconnect error:", result.stderr)  # Printing error of disconnect command
+        
+        # Connect to the specified WiFi network
+        result = subprocess.run(['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password], check=True, capture_output=True, text=True)
+        print("Connect output:", result.stdout)  # Printing output of connect command
+        print("Connect error:", result.stderr)  # Printing error of connect command
+        
         return True
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as e:
+        print("Error occurred:", e)  # Printing the exception message
         return False
 
 # Flask Routes
