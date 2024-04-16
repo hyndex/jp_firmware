@@ -122,7 +122,7 @@ class ChargePoint(cp):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if is_raspberry_pi():
-            self.pi = pigpio_instance
+            self.pi = get_pigpio_instance()
             self.setup_emergency_stop_pin()
             if not self.pi.connected:
                 raise RuntimeError("pigpio daemon is not running")
