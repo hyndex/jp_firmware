@@ -11,7 +11,7 @@ from datetime import datetime
 from datetime import timedelta
 import time
 from lcd_display_20_4 import update_lcd_line
-from MFRC522 import SimpleMFRC522
+# from MFRC522 import SimpleMFRC522
 
 import aioserial
 import requests
@@ -148,7 +148,8 @@ class ChargePoint(cp):
         logging.info('RFID monitoring started.')
 
         if(is_raspberry_pi):
-            reader = SimpleMFRC522(pi=self.pi) 
+            reader=None
+            # reader = SimpleMFRC522(pi=self.pi) 
             last_write_time = time.time()
 
             while True:
