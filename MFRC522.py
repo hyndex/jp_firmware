@@ -1,8 +1,8 @@
-import pigpio
 import spidev
+import pigpio
 import time
 import logging
-
+from main import pigpio_instance
 class MFRC522:
     MAX_LEN = 16
 
@@ -113,7 +113,7 @@ class MFRC522:
         level = logging.getLevelName(debugLevel)
         self.logger.setLevel(level)
 
-        self.pi = pi if pi else pigpio.pi()
+        self.pi = pi if pi else pigpio_instance
 
         if pin_rst != -1:
             self.pi.set_mode(pin_rst, pigpio.OUTPUT)

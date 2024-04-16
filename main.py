@@ -41,6 +41,7 @@ BAUD_RATE = 9600
 # GPIO Pins for Emergency Stop Condition
 EMERGENCY_STOP_PIN1 = 6  # GPIO pin number
 
+pigpio_instance=None
 
 # Logging configuration
 logging.basicConfig(level=logging.INFO)
@@ -54,15 +55,21 @@ def load_json_config(file_path):
         logging.error(f"Failed to load JSON config from {file_path}: {e}")
         return {}
 
+
 def is_raspberry_pi():
+    global pigpio_instance
     if platform.system() == 'Linux':
         try:
             with open('/proc/device-tree/model', 'r') as file:
                 model_info = file.read()
+                
             return 'Raspberry Pi' in model_info
         except FileNotFoundError:
             return False
     return False
+
+if is_raspberry_pi():
+    pigpio_instance = pigpio.pi()
 
 def get_relay_pins():
     return {1: 22, 2: 27, 3: 10}
@@ -76,7 +83,7 @@ class RelayController:
         self.RFID_EXPIRY_TIME = 5  # Seconds to consider the RFID tag as new
 
         if is_raspberry_pi():
-            self.pi = pigpio.pi()
+            self.pi = pigpio_instance
             if not self.pi.connected:
                 raise RuntimeError("pigpio daemon is not running")
             self.pi.set_mode(self.relay_pin, pigpio.OUTPUT)
@@ -99,7 +106,7 @@ class ChargePoint(cp):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if is_raspberry_pi():
-            self.pi = pigpio.pi()
+            self.pi = pigpio_instance
             self.setup_emergency_stop_pin()
             if not self.pi.connected:
                 raise RuntimeError("pigpio daemon is not running")
