@@ -655,53 +655,47 @@ class ChargePoint(cp):
         except subprocess.CalledProcessError:
             os.rename(BACKUP_FIRMWARE_FILE, FIRMWARE_FILE)
             subprocess.run(['python3', FIRMWARE_FILE])
+            
+
+# Import necessary modules and define your ChargePoint class as before
 
 async def main():
     charger_config = load_json_config(CHARGER_CONFIG_FILE)
     server_url = charger_config['server_url']
     charger_id = charger_config['charger_id']
-
     reconnection_delay = charger_config.get('reconnection_delay', 10)  # In seconds
 
     while True:
         try:
-            # Attempt to connect to the server using websockets
+            # Ensure any existing WebSocket connection is closed before reconnecting
             async with websockets.connect(f"{server_url}/{charger_id}", subprotocols=["ocpp1.6j"]) as ws:
                 cp_instance = ChargePoint(charger_id, ws)
-
-                # Display a message on LCD
                 update_lcd_line(4, "Joulepoint, Online")
-
-                # Run all tasks concurrently
-                await asyncio.gather(
+                tasks = [
                     cp_instance.start(),
                     cp_instance.send_boot_notification(),
                     cp_instance.heartbeat(),
                     cp_instance.send_periodic_meter_values(),
                     cp_instance.send_status_notifications_loop(),
                     cp_instance.read_serial_data(),
-                    # cp_instance.monitor_and_process_rfid(),
                     cp_instance.monitor_emergency_stop_pin(),
-                )
+                ]
+                await asyncio.gather(*tasks)
 
-        except (websockets.exceptions.WebSocketException, ConnectionRefusedError, ConnectionResetError) as e:
-            # Handle reconnection on WebSocket errors
-            logging.error(f"Connection to server failed: {e}. Retrying in {reconnection_delay} seconds...")
+        except websockets.exceptions.ConnectionClosedOK:
+            logging.info("WebSocket connection was closed normally, attempting to reconnect...")
+            await asyncio.sleep(reconnection_delay)
+        except websockets.exceptions.WebSocketException as e:
+            logging.error(f"WebSocket error occurred: {e}. Retrying...")
             update_lcd_line(4, "Server Disconnected. Retrying...")
             await asyncio.sleep(reconnection_delay)
         except Exception as e:
-            # Handle any other exceptions
             logging.error(f"Unexpected error: {e}")
             update_lcd_line(4, "Unexpected Error. Retrying...")
             await asyncio.sleep(reconnection_delay)
         except KeyboardInterrupt:
-            # Exit the loop if the program is interrupted by the user
+            logging.info("Application shutdown requested by user.")
             break
 
 if __name__ == "__main__":
-    # Run the main function until interrupted
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        # Cleanup and close operations
-        logging.info("Application stopped by the user.")
+    asyncio.run(main())
