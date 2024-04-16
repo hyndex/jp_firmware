@@ -12,6 +12,7 @@ from datetime import timedelta
 import time
 from lcd_display_20_4 import update_lcd_line
 # from MFRC522 import SimpleMFRC522
+import atexit
 
 import aioserial
 import requests
@@ -41,8 +42,24 @@ BAUD_RATE = 9600
 # GPIO Pins for Emergency Stop Condition
 EMERGENCY_STOP_PIN1 = 6  # GPIO pin number
 
-pigpio_instance=None
+# Global variable for the pigpio instance
+pigpio_instance = None
 
+def get_pigpio_instance():
+    global pigpio_instance
+    if not pigpio_instance:
+        pigpio_instance = pigpio.pi()
+        if not pigpio_instance.connected:
+            raise RuntimeError("Failed to connect to pigpio daemon")
+        atexit.register(cleanup_pigpio)  # Register cleanup function to be called at exit
+    return pigpio_instance
+
+def cleanup_pigpio():
+    global pigpio_instance
+    if pigpio_instance:
+        pigpio_instance.stop()  # Properly stop the pigpio instance
+        pigpio_instance = None
+        print("pigpio connection closed")
 # Logging configuration
 logging.basicConfig(level=logging.INFO)
 
@@ -68,9 +85,6 @@ def is_raspberry_pi():
             return False
     return False
 
-if is_raspberry_pi():
-    pigpio_instance = pigpio.pi()
-
 def get_relay_pins():
     return {1: 22, 2: 27, 3: 10}
 
@@ -81,22 +95,24 @@ class RelayController:
         self.relay_state = 0  # 0: Off, 1: On
         self.last_rfid_read = {"id": None, "text": ""}
         self.RFID_EXPIRY_TIME = 5  # Seconds to consider the RFID tag as new
+        self.IS_PI=0
 
         if is_raspberry_pi():
-            self.pi = pigpio_instance
+            self.pi = get_pigpio_instance()
             if not self.pi.connected:
                 raise RuntimeError("pigpio daemon is not running")
             self.pi.set_mode(self.relay_pin, pigpio.OUTPUT)
+            self.IS_PI=1
 
     def open_relay(self):
-        if is_raspberry_pi():
+        if self.IS_PI==1:
             self.pi.write(self.relay_pin, 1)
         else:
             self.relay_state = 1
         logging.info(f'Relay on GPIO {self.relay_pin} is turned ON.')
 
     def close_relay(self):
-        if is_raspberry_pi():
+        if self.IS_PI==1:
             self.pi.write(self.relay_pin, 0)
         else:
             self.relay_state = 0
@@ -655,7 +671,7 @@ class ChargePoint(cp):
         except subprocess.CalledProcessError:
             os.rename(BACKUP_FIRMWARE_FILE, FIRMWARE_FILE)
             subprocess.run(['python3', FIRMWARE_FILE])
-            
+
 
 # Import necessary modules and define your ChargePoint class as before
 
@@ -696,6 +712,8 @@ async def main():
         except KeyboardInterrupt:
             logging.info("Application shutdown requested by user.")
             break
+        finally:
+            cleanup_pigpio()
 
 if __name__ == "__main__":
     asyncio.run(main())
