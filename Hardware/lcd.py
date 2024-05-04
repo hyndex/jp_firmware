@@ -1,4 +1,4 @@
-# 20_4_lcd_display.py
+# lcd.py
 import platform
 import os
 if platform.system() == 'Linux' and os.path.exists('/proc/device-tree/model'):
