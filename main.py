@@ -4,7 +4,7 @@ from websockets import connect
 from websockets.exceptions import ConnectionClosedOK, WebSocketException
 
 from ChargePoint import ChargePoint  # Assuming all classes and functions are correctly defined and imported here
-from ChargePoint.utils import load_json_config  # Ensure this function is defined to handle config loading
+from ChargePoint.misc import load_json_config  # Ensure this function is defined to handle config loading
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO)
