@@ -42,6 +42,7 @@ async def send_boot_notification(charge_point, max_retries=5, retry_interval=10)
     if retries > max_retries:
         logging.error("Max boot notification retries reached. Giving up.")
 
+
 async def heartbeat(charge_point, interval=30):
     """
     Sends a heartbeat signal at a specified interval to maintain connection with the central system.

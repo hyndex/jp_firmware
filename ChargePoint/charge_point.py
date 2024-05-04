@@ -77,10 +77,10 @@ class ChargePoint:
     async def remote_stop(self, transaction_id):
         await self.function_call_queue.put((remote_stop_transaction, [self, transaction_id], {}))
 
-    async def handle_transactions(self, connector_id, id_tag):
-        await self.function_call_queue.put((start_transaction, [self, connector_id, id_tag], {}))
-        await asyncio.sleep(300)  # Simulate transaction duration
-        await self.function_call_queue.put((stop_transaction, [self, connector_id, 'Remote'], {}))
+    # async def handle_transactions(self, connector_id, id_tag):
+    #     await self.function_call_queue.put((start_transaction, [self, connector_id, id_tag], {}))
+    #     await asyncio.sleep(300)  # Simulate transaction duration
+    #     await self.function_call_queue.put((stop_transaction, [self, connector_id, 'Remote'], {}))
 
     async def meter_values_loop(self):
         asyncio.create_task(send_periodic_meter_values(self))
